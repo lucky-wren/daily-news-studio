@@ -31,7 +31,7 @@
     "show_issue": true
   },
   "opening": "早上好，今天是2026年11月13日，星期五。以下为今日要闻速览。",
-  "closing": "以上是今日要闻速览。内容依据公开信息整理，具体以官方发布为准。仅供参考，不构成投资、医疗或法律建议。感谢收听，下期见。",
+  "closing": "以上是今日要闻速览，感谢收听，下期见。",
   "window_on": true,
   "voice": {
     "mode": "libretts",
@@ -43,12 +43,17 @@
     "retries": 2,
     "upload": null,
     "note": "在线 LibreTTS 微软神经音色；按 POST JSON → GET t/v/r/p → GET text/voice 三种契约兼容。4xx 会打印响应体。rate=0 为默认语速。失败即停止出片，不静音占位、不沿用上期。若公共实例持续不可用，把 mode 改成 edge（同为微软神经音色、直连不经第三方站）或 upload（自定义真人录音）后重跑。",
-    "concurrency": 6
+    "concurrency": 12,
+    "master_gain_db": 0.0
   },
   "bgm": {
     "file": null,
     "volume": 0.33,
-    "note": "配乐仅自定义上传；点「不配乐」时为纯人声。"
+    "note": "配乐仅自定义上传；点「不配乐」时为纯人声。",
+    "duck": true,
+    "duck_db": -8,
+    "fade_in": 0.4,
+    "fade_out": 0.8
   },
   "subtitle": {
     "on": true,
@@ -798,5 +803,16 @@
     "角色标签",
     "来源短名"
   ],
-  "semantic_mode": "L1"
+  "semantic_mode": "L1",
+  "disclaimer": "内容依据公开信息整理，具体以官方发布为准；仅供参考，不构成投资、医疗或法律建议。",
+  "mix": {
+    "voice_volume": 1.0,
+    "bgm_volume": 0.33,
+    "master_gain_db": 0.0,
+    "duck": true,
+    "duck_db": -8,
+    "fade_in": 0.4,
+    "fade_out": 0.8,
+    "concurrency": 12
+  }
 }

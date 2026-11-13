@@ -79,13 +79,25 @@ def build_audio(root, voice, manifest):
         bgm = os.path.join(root, bgm_rel)
         if not os.path.isfile(bgm):
             raise RuntimeError('配置的 BGM 不存在：' + bgm)
+        mx = cfg.get('mix') or {}
         b = float(cfg['bgm'].get('volume', .33))
+        # 人声优先：播放期间按 duck_db 压低配乐；总音量由 master_gain_db 统一补偿
+        if mx.get('duck', True):
+            b *= 10 ** (float(mx.get('duck_db', -8)) / 20.0)
+        fade_in = max(0.0, float(mx.get('fade_in', .4)))
+        fade_out = max(0.0, float(mx.get('fade_out', .8)))
+        af = '[1:a]volume=%.4f' % b
+        if fade_in > 0:
+            af += ',afade=t=in:st=0:d=%.2f' % fade_in
+        if fade_out > 0:
+            dur = float(voice.get('total') or 0)
+            af += ',afade=t=out:st=%.2f:d=%.2f' % (max(0.0, dur - fade_out), fade_out)
+        af += ',alimiter=limit=0.30[b];'
         # normalize=0：amix 默认会把每路各乘 0.5（约 -6dB），这是总音量偏小的主因。
         run(['ffmpeg', '-y', '-loglevel', 'error', '-i', vwav, '-stream_loop', '-1', '-i', bgm,
              '-filter_complex',
-             '[1:a]volume=%.3f,alimiter=limit=0.30[b];'
-             '[0:a][b]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,'
-             'alimiter=limit=0.95[m]' % b,
+             af + '[0:a][b]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,'
+             'alimiter=limit=0.95[m]',
              '-map', '[m]', '-c:a', 'libmp3lame', '-b:a', '96k', '-ac', '1', out], '混音 BGM')
     else:
         run(['ffmpeg', '-y', '-loglevel', 'error', '-i', vwav,
@@ -98,7 +110,7 @@ def build_audio(root, voice, manifest):
 def simple_frame(root, text, size, out, acc_hex='#e6432f', reveal=1.0, theme='deep_blue'):
     """开场 / 窗口说明 / 片尾帧：按封面主题自动反色，不再写死深底白字。"""
     W, H = R.SIZES[size]
-    u = W / 1080.0
+    u = min(W, H) / 1080.0
     th = R.THEMES.get(theme, R.THEMES['deep_blue'])
     base = R.rgb(th['bg']); fg = R.rgb(th['txt'])
     sub = R.rgb(th['sub']); line_c = R.rgba_color(th['line'], base)
@@ -290,8 +302,11 @@ def produce(root, manifest, voice, card_cfg):
     cdir = os.path.join(root, '.cache', 'cards_' + size)
     os.makedirs(cdir, exist_ok=True)
     cc = dict(card_cfg, size=size)
+    card_overflow = []
     for c in manifest['cards']:
-        R.render_card(root, c, cc, os.path.join(cdir, 'c%03d.png' % c['index']))
+        cmeta = R.render_card(root, c, cc, os.path.join(cdir, 'c%03d.png' % c['index']))
+        if cmeta.get('overflow'):
+            card_overflow.append(c['index'])
 
     status = {'ok': False, 'real_voice': voice.get('real_voice'), 'voice_mode': voice.get('mode'),
               'audio': {'path': 'media/今日播报.mp3', 'duration': adur, 'streams': ainfo['streams'],
@@ -302,6 +317,7 @@ def produce(root, manifest, voice, card_cfg):
               'subtitle_typewriter': bool(ass_path),
               'export_size': size,
               'card_count': len(manifest['cards']), 'segment_count': len(manifest['segments']),
+              'card_overflow': card_overflow,
               'versions': {}, 'errors': []}
     frames = frames_for(root, manifest, voice, size, tw)
     path, info = build_video(root, manifest, frames, audio, size, srt_path, adur, ass_path)
@@ -310,6 +326,8 @@ def produce(root, manifest, voice, card_cfg):
         status['errors'].append('%s 缺视频轨或音轨' % size)
     if sub.get('soft_track') and srt_path and not info['soft_subtitle']:
         status['errors'].append('%s 缺软字幕轨' % size)
+    if card_overflow:
+        status['errors'].append('卡片来源溢出画面：%s' % card_overflow)
     if abs(info['duration'] - adur) > 1.5:
         status['errors'].append('%s 时长与音频不一致 %.2f vs %.2f' % (size, info['duration'], adur))
     status['frame_count'] = len(frames)

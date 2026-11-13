@@ -213,7 +213,7 @@
     },
     {
       "i": 33,
-      "text": "以上是今日要闻速览。内容依据公开信息整理，具体以官方发布为准。仅供参考，不构成投资、医疗或法律建议。感谢收听，下期见。",
+      "text": "以上是今日要闻速览，感谢收听，下期见。",
       "kind": "closing",
       "card": null
     }
@@ -846,12 +846,18 @@
       "endpoint": "https://libretts.is-an.org/api/tts",
       "upload": null,
       "timeout_s": 20,
-      "retries": 2
+      "retries": 2,
+      "master_gain_db": 0.0,
+      "concurrency": 12
     },
     "bgm": {
       "file": null,
       "volume": 0.33,
-      "enabled": false
+      "enabled": false,
+      "duck": true,
+      "duck_db": -8,
+      "fade_in": 0.4,
+      "fade_out": 0.8
     },
     "subtitle": {
       "on": true,
@@ -955,6 +961,16 @@
         "max_steps": 8,
         "note": "打字机作用位置可设为字幕 / 视频帧 / 两者；预览同步演示。"
       }
+    },
+    "mix": {
+      "voice_volume": 1.0,
+      "bgm_volume": 0.33,
+      "master_gain_db": 0.0,
+      "duck": true,
+      "duck_db": -8,
+      "fade_in": 0.4,
+      "fade_out": 0.8,
+      "concurrency": 12
     }
   },
   "gates": [

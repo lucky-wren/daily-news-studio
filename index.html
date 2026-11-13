@@ -200,6 +200,18 @@ body.pv-player .stage .pstage canvas{height:100%;width:auto;min-height:0;max-hei
 body.pv-player .stage .pvb>canvas{display:none!important}
 body.pv-player .stage .pstage .sublayer{font-size:15px;padding:9px 14px}
 body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stage .pinfo,body.pv-player .stage .row{flex:0 0 auto}
+/* ===== 字幕烧在画面内、时间轴可拖指针、混声设置 ===== */
+.sublayer{display:none!important}
+.pbar{position:relative;height:10px;overflow:visible;touch-action:none;cursor:ew-resize}
+.pbar>i{pointer-events:none}
+.pbar .head,.timeline .head{position:absolute;top:-4px;width:3px;height:18px;background:#fff;box-shadow:0 0 0 1px var(--acc);border-radius:2px;pointer-events:none;transform:translateX(-50%);z-index:3}
+.timeline{position:relative;touch-action:none;cursor:ew-resize}
+.timeline .head{height:20px;top:-3px}
+.seekTip{position:fixed;z-index:99;background:#0a1725;border:1px solid var(--acc);color:#ffd0c6;font:11px var(--mono);padding:3px 7px;border-radius:5px;pointer-events:none;white-space:nowrap}
+.mixbox{background:#0a1725;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0}
+.mixbox .hd{font-size:12.5px;color:var(--txt);font-weight:700;margin-bottom:8px}
+.mixbox .kv{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:7px;font:12px var(--mono);color:var(--sub)}
+.mixbox input[type=range]{max-width:150px;min-width:90px}
 </style></head><body>
 <header>
  <div class="hd">
@@ -231,10 +243,11 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
       <div class="pbadge" id="plBadge">句 01 / 32</div>
       <div class="sublayer" id="plSub"></div></div>
      <div class="timeline" id="timeline"></div>
-     <div class="pbar" id="pbar" title="点击跳转到该进度"><i id="pbarFill"></i></div>
+     <div class="pbar" id="pbar" title="拖动指针跳转到任意位置"><i id="pbarFill"></i><i class="head" id="pbarHead"></i></div>
      <div class="pinfo"><span>当前句 <b id="plIdx">01</b></span><span>卡片 <b id="plCard">—</b></span><span>字幕 <b id="plSrt">32 条</b></span><span>时长 <b id="plDur">—</b></span><span>状态 <b id="plState">已停止</b></span></div>
      <div class="row" style="margin:9px 0 0"><button class="pri sm" id="btnPlay">▶ 播放</button><button class="sm" id="btnPause" style="display:none">⏸ 暂停</button><button class="sm" id="btnReplay">🔁 重播</button><button class="sm" id="btnFull">⛶ 全屏</button><button class="sm on" id="btnSubToggle">字幕 开</button><span class="mini" id="plTime">00:00 / --:--</span></div>
      <div class="row" style="margin:4px 0 0"><span class="mini" id="plMode">未逐句合成 · 按估算节奏预览</span></div>
+     <div class="seekTip" id="seekTip" style="display:none"></div>
     </div>
    </div>
   </div>
@@ -281,7 +294,8 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
      <span class="mini" id="bodyEditStat"></span></label>
     <div id="bodyEditors"></div>
     <textarea id="bodyText" rows="0" spellcheck="false" style="display:none"></textarea></div>
-   <div class="seg"><label>④ 片尾（独立可编辑）</label><textarea id="closeText" rows="4" spellcheck="false"></textarea></div>
+   <div class="seg"><label>④ 片尾（独立可编辑 · 只朗读这一句）</label><textarea id="closeText" rows="4" spellcheck="false"></textarea></div>
+   <div class="okbar"><b>免责声明（仅页面展示，不朗读、不进字幕、不进视频帧）</b>：内容依据公开信息整理，具体以官方发布为准；仅供参考，不构成投资、医疗或法律建议。</div>
    <div class="seg"><label>完整拼接预览（只读 · 一句口播 = 一条字幕）</label><div class="fullbox" id="scriptFull"></div></div>
    <div class="row"><button id="btnResetScript">恢复默认四段</button><button id="btnExportScript">⬇ 导出 口播文稿.md</button><span class="mini" id="scriptStat"></span></div>
    <p class="hint">开场 / 窗口说明 / 片尾各自独立编辑；正文 <b>30 条各一个编辑框</b>，改任一条后句子表、卡片、字幕、时间轴按新 hash 重算。<b>封面独立取封面 sheet</b>，改文稿标题不会自动改封面，校验闸会把不一致检出来。</p>
@@ -366,8 +380,9 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
    <div class="row"><label class="lb">人声音量</label><input type="range" id="vcVol" min="0" max="200" value="100"><span class="mini" id="vcVolV">1.00</span>
     <span class="mini">0 = 静音 · 1.00 = 原始电平 · 2.00 = 提升 6dB；与 BGM 混音音量相互独立</span></div>
    <div class="row" id="vcUploadRow" style="display:none"><label class="lb">真人录音</label><input type="file" id="vcFile" accept="audio/*"><span class="mini">上传即整段替换音轨</span></div>
-   <div class="row"><button id="btnVoiceDemo">▶ 在线试听一句</button><button class="pri" id="btnVoiceBuild">⏱ 逐句合成到人声轨（并发 6 路）</button><button id="btnVoiceCancel" disabled>■ 取消</button><button id="btnVoicesRefresh">↻ 刷新在线音色列表</button><button id="btnExportVoiceTrack">⬇ 导出人声音轨 WAV</button></div>
-   <div class="row"><span class="mini" id="vcBuildState">未合成：时间轴按字数估算（标注「估算」），预览不出声；点「逐句合成到人声轨」后，逐句音频写进同一条人声轨，播放、时间轴、导出视频共用这一份缓冲。<b>6 路并发 + 本地缓存</b>，已合成过的句子直接复用。</span></div>
+   <div class="row"><button id="btnVoiceDemo">▶ 在线试听一句</button><button class="pri" id="btnVoiceBuild">⏱ 逐句合成到人声轨（增量 · 并发 12 路）</button><button id="btnVoiceCancel" disabled>■ 取消</button><button id="btnVoicesRefresh">↻ 刷新在线音色列表</button><button id="btnExportVoiceTrack">⬇ 导出人声音轨 WAV</button></div>
+   <div class="row"><label class="lb">并发路数</label><select id="vcConc"><option value="6">6 路</option><option value="12" selected>12 路</option><option value="16">16 路</option></select><span class="mini">只重合成改动的句子；音频写入浏览器持久化缓存，刷新后仍复用</span></div>
+   <div class="row"><span class="mini" id="vcBuildState">未合成：时间轴按字数估算（标注「估算」），预览不出声；点「逐句合成到人声轨」后，逐句音频写进同一条人声轨，播放、时间轴、导出视频共用这一份缓冲。<b>12 路并发 + 增量复用 + 持久化缓存</b>，只重合成改动的句子。</span></div>
    <div id="vcUploadMsg"></div>
    <div class="warnbar" id="vcStatus">LibreTTS 在线实例 <span class="file">libretts.is-an.org</span> · Edge API 免密钥、微软神经音色。<b>首次 Actions 实跑前，本包未验证在线实例可达性</b>；runner 可达性以实跑日志为准。失败策略 <b>stop_and_report</b>：20s 超时、2 次重试，仍失败即停止出片，不静默塞静音占位、不沿用上期音轨。人声音量写入 render_manifest.json 与合成任务清单，成品按 ffmpeg <code>volume</code> 滤镜应用。</div>
   </div></section>
@@ -379,6 +394,17 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
    <div class="row"><button id="btnBgmPreview">▶ 试听</button><button class="pri" id="btnBgmSet">✅ 设为背景</button><button id="btnBgmNone">不配乐</button></div>
    <div class="row"><label class="lb">混音音量</label><input type="range" id="bgmVol" min="0" max="100" value="33"><span class="mini" id="bgmVolV">0.33</span><button id="btnExportBgm">⬇ 导出 bgm_choice.json</button></div>
    <div class="okbar" id="bgmState">当前背景音乐：<b>不配乐（纯人声）</b></div>
+   <div class="mixbox">
+    <div class="hd">混声设置 · 人声 / 配乐 / 总音量（预览与成品同源）</div>
+    <div class="kv"><label class="lb" style="width:64px;flex:0 0 64px">人声音量</label><input type="range" id="mixVoice" min="0" max="200" value="100"><b id="mixVoiceV">1.00</b>
+     <label class="lb" style="width:64px;flex:0 0 64px">配乐音量</label><input type="range" id="mixBgm" min="0" max="100" value="33"><b id="mixBgmV">0.33</b></div>
+    <div class="kv"><label class="lb" style="width:64px;flex:0 0 64px">总音量</label><input type="range" id="mixMaster" min="-6" max="6" step="0.5" value="0"><b id="mixMasterV">0.0 dB</b>
+     <label class="opt"><input type="checkbox" id="mixDuck" checked> 人声优先（播放时压低配乐）</label>
+     <select id="mixDuckDb"><option value="-4">-4 dB</option><option value="-8" selected>-8 dB</option><option value="-12">-12 dB</option></select></div>
+    <div class="kv"><label class="lb" style="width:64px;flex:0 0 64px">淡入</label><input type="range" id="mixFadeIn" min="0" max="30" step="1" value="4"><b id="mixFadeInV">0.4 s</b>
+     <label class="lb" style="width:64px;flex:0 0 64px">淡出</label><input type="range" id="mixFadeOut" min="0" max="30" step="1" value="8"><b id="mixFadeOutV">0.8 s</b></div>
+    <div class="okbar" id="mixState">人声 1.00 · 配乐 0.33 · 总增益 0.0 dB · 人声优先开</div>
+   </div>
    <audio id="bgmAudio" preload="none"></audio>
    <p class="hint">「▶ 试听」再点一次即停止，一个按钮完成试听 / 停止；试听与「设为背景」互不相干。自定义音频的授权由上传者自行核对。</p>
   </div></section>
@@ -420,7 +446,7 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
 <footer id="foot"></footer>
 
 <script src="data.js"></script>
-<script id="payload" type="application/json">{"version": "1.0", "date": "2026-11-13 星期五", "issue": "第01期", "open": "早上好，今天是2026年11月13日，星期五。以下为今日要闻速览。", "close": "以上是今日要闻速览。内容依据公开信息整理，具体以官方发布为准。仅供参考，不构成投资、医疗或法律建议。感谢收听，下期见。", "news": [{"title": "机构预测 11 月 12 日 24 时成品油调价或下调，92 号汽油每升降约 0.3 元", "summary": "11 月 11 日多家机构测算，11 月 12 日 24 时新一轮国内成品油零售限价调整窗口开启，本轮下调为大概率事件。金联创测算截至 11 月 11 日第九个工作日参考原油品种均价 97.62 美元/桶、变化率 -8.21%，对应汽柴油应下调 440 元/吨；卓创资讯预计下调 410 元/吨，折合 92 号汽油、0 号柴油每升下调约 0.3 元，加满 50 升 92 号汽油约省 15 元。最终调价结果及幅度以国家发展改革委正式公告为准。", "sources": [{"platform": "M02 · 极目新闻·网易", "url": "https://www.163.com/dy/article/LBFR6QGB053469LG.html"}, {"platform": "M02 · 光明网", "url": "https://m.gmw.cn/2026-11/11/content_1304585016.htm"}], "label": "油价 / 成品油调价", "level": "", "sem": {"value": "0.3", "unit": "元 / 升", "trend": "down", "stamp": "调价窗口 11.12 24:00", "board": "民生服务", "org": "机构预测", "src": "机构预测"}}, {"title": "湖北疾控：已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主", "summary": "11 月 11 日湖北省疾控中心通报，湖北已进入 2026 年秋冬流感流行季的上升阶段，当前三种毒株共同流行，以甲型 H3N2 为主，绝大多数感染者为轻症。提示高危人群优先完成流感疫苗接种，学校、托幼机构、养老院等重点场所做好通风与晨午检，出现流感样症状尽量居家休息，去密闭人群密集场所戴好口罩，高危人群感染后及时就医评估抗病毒治疗。", "sources": [{"platform": "M08 · 湖北日报·微博", "url": "https://m.weibo.cn/status/5364135388251466"}], "label": "应季健康提示 / 流感", "level": "", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "湖北疾控", "brief": "已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主。", "role": "提示流行毒株与趋势", "src": "湖北疾控"}}, {"title": "工信部批复 10 家企业开展 700 号段号码保护服务试点", "summary": "11 月 11 日人民日报客户端报道，工业和信息化部批复 10 家企业开展号码保护服务业务试点，核配「700」专用码号资源，先期在外卖、网约车等场景探索。骑手、司机通过 700 开头中间号与用户通话，互相隐藏真实号码，用于减少个人信息泄露与电信网络诈骗。此前行业普遍用普通手机号作中间号，用户无法区分来电是否为中间号。", "sources": [{"platform": "I01 · 人民日报客户端·今日头条", "url": "https://www.toutiao.com/article/7706865536772194826/"}], "label": "700 号段 / 个人信息保护", "level": "", "sem": {"board": "公共安全与出行"}}, {"title": "成都疾控、成都气象联合提示：流感综合指数 IV 级，处于活跃期", "summary": "11 月 11 日报道，成都疾控、成都气象联合发布提示，成都市流感综合指数分级为 IV 级，流感处于活跃期，本月降温降水过程将增加发病风险。成都市疾控中心专家提示，接种流感疫苗是最有效手段，幼儿、老人、慢性病患者为重症高危人群；今年上市的流感疫苗均为三价疫苗，覆盖甲型 H1N1、甲型 H3N2 和乙型 Victoria 系。建议居家每日通风 2 至 3 次、每次半小时，孩子出现发烧咳嗽及时居家休息、不带病返校。", "sources": [{"platform": "M08 · 腾讯新闻·转成都疾控", "url": "https://new.qq.com/rain/a/20261111A0DWU000"}], "label": "应季健康提示 / 流感", "level": "", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "成都疾控 × 成都气象", "brief": "流感综合指数 IV 级，处于活跃期。", "role": "本地风险等级", "src": "成都疾控 / 成都气象"}}, {"title": "光明网：中欧班列重箱率连续 50 个月保持 100%，「班列好物」进入消费者购物车", "summary": "国家发展改革委 11 月 11 日表示，截至 2026 年 10 月，中欧班列重箱率已连续 50 个月保持在 100%，实现重去重回、双向满载，综合物流成本显著下降。2026 年 1 至 10 月开行 18661 列、运送货物 186.5 万标箱，同比分别增长 14.6% 和 11.2%；每周在中国 9 座城市和欧洲 6 座城市间稳定开行 22 列。国家发展改革委区域开放司司长梁林冲介绍，消费者可通过中欧班列商贸平台选购西班牙红酒、荷兰奶酪等欧洲商品。", "sources": [{"platform": "D01 · 央视网·光明网转载", "url": "https://m.gmw.cn/2026-11/11/content_1304585085.htm"}], "label": "外贸 / 中欧班列", "level": "", "sem": {"board": "产业经济"}}, {"title": "泸州「花坛藏尸案」一审宣判：一死刑、一死缓", "summary": "11 月 10 日泸州中院一审公开宣判：被告人陈某芬犯故意杀人罪、伪造身份证件罪、使用虚假身份证件罪、偷越国（边）境罪，数罪并罚决定执行死刑，剥夺政治权利终身，并处罚金 2.7 万元；被告人杨某根犯故意杀人罪，判处死刑缓期 2 年执行，剥夺政治权利终身；驳回附带民事诉讼原告人黄某的诉讼请求。法院查明，1997 年陈某芬为逃避 4 万元债务，与丈夫杨某根合谋将借款人吴某萍约至仓库杀害，尸体转移至楼顶花坛掩埋，案件于 2026 年 7 月 10 日开庭。", "sources": [{"platform": "S03 · 四川长安网", "url": "https://www.sichuanpeace.gov.cn/fzsc/20261111/2999821.html"}], "label": "重大司法 / 命案宣判", "level": "", "sem": {"board": "公共安全与出行"}}, {"title": "中国疾控中心提示秋冬呼吸道传染病高发季四条防护要点", "summary": "中国疾控中心发布科普提示：秋冬季节流感、呼吸道合胞病毒、鼻病毒、肺炎支原体感染等急性呼吸道传染病迎来高发季。防护要点包括勤洗手、科学佩戴口罩，保持规律作息与均衡饮食，老人孩子及慢病人群出现发热咳嗽及时就诊，不提倡带病上学上班，并积极主动接种流感等疫苗。", "sources": [{"platform": "M08 · 中国疾控中心", "url": "https://wv.video.qq.com/export/UzFfBgAAxJipZBBrdQyXk8zT4DBZDcdDEZcZbgYnZDwSCQHmHnA"}], "label": "应季健康提示 / 呼吸道传染病", "level": "", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "中国疾控中心", "brief": "发布秋冬呼吸道传染病高发季四条防护要点。", "role": "可执行的行动建议", "src": "中国疾控中心"}}, {"title": "中央气象台每日天气提示：云南南部及华南降雨增多，华北黄淮大气扩散条件转差", "summary": "中央气象台 11 月 11 日 08 时发布每日天气提示：预计 11 日至 13 日，云南、广西、广东、贵州、湖南、江西、福建等地降水增多增强；11 日至 15 日新疆北部山区和沿天山地区有明显降雪，北疆西部山区有暴雪或大暴雪（10~28 毫米）。11 日至 14 日华北中南部、黄淮及汾渭平原有轻至中度霾，13 日至 14 日影响最重，北京东南部、天津、河北中南部、河南北部、山东中西部、苏皖等地局地可达重度霾。提醒公众关注雨雪和局地强降雨对交通出行的不利影响。", "sources": [{"platform": "W01 · 中央气象台·每日天气提示", "url": "https://www.nmc.cn/publish/weatherperday/index.htm?v=2024061411"}], "label": "交通出行 / 天气", "level": "", "sem": {"board": "公共安全与出行"}}, {"title": "中新网：国台办指「双十一」消费热见证两岸生活方式相通", "summary": "中新社北京 11 月 11 日电，国务院台办例行新闻发布会 11 日在北京举行。发言人张晗应询表示，「双十一」在两岸掀起的消费热潮，是两岸经贸联系紧密、两岸同胞生活方式相通的生动见证；大陆电商平台为台湾民众提供了安全便捷的网购环境和质优量足的各类好物。张晗还就世界互联网大会乌镇峰会海峡两岸暨港澳互联网发展论坛、「妈祖」气象智能预警方案等答记者问。", "sources": [{"platform": "M05 · 中国新闻网", "url": "https://www.chinanews.com.cn/gn/2026/11-11/10730095.shtml"}], "label": "两岸交流 / 消费", "level": "", "sem": {"board": "民生服务"}}, {"title": "中汽协：10 月新能源汽车新车销量占比达 64.3%，汽车产销双双超过 300 万辆", "summary": "11 月 11 日中国汽车工业协会发布数据：2026 年 10 月汽车产销分别完成 306.3 万辆和 301.6 万辆，环比增长 2.5% 和 2%，同比下降 8.8% 和 9.2%；新能源汽车产销分别完成 201.7 万辆和 194 万辆，同比增长 13.8% 和 13.1%，月度新车销量占比达 64.3%。10 月汽车出口 106.6 万辆、同比增长 60.2%，连续 5 个月保持在 100 万辆以上；新能源汽车出口 60.6 万辆、同比增长 1.4 倍。", "sources": [{"platform": "I02 · 央视网", "url": "https://news.cctv.cn/2026/11/11/ARTIfgLkoGZV7AHZb47skhDb261111.shtml"}], "label": "新能源车 / 产业数据", "level": "", "sem": {"board": "产业经济"}}, {"title": "中国驻日使馆敦促日方依法严惩侵闯使馆凶犯，日本检方建议判刑 18 个月", "summary": "新华社东京 11 月 10 日电，中国驻日本大使馆发言人 10 日就村田晃大非法持刀侵闯中国驻日本大使馆案第二次开庭答记者问，表示相关案情事实清楚、证据确凿，再次敦促日方依法严惩凶犯，不得为其开脱罪责。日本东京地方法院 10 日再次举行庭审，日本检方建议判处其 18 个月监禁，辩方请求判处罚金。发言人指出，日本自卫队现役官员持刀侵闯中国大使馆并发出恐怖威胁，严重侵犯中国主权和尊严，严重违反《维也纳外交关系公约》。", "sources": [{"platform": "N01 · 新华社·央视网转载", "url": "https://news.cctv.cn/2026/11/11/ARTIT5ye4pBGqaqDSoP61myL261111.shtml"}], "label": "涉外司法 / 涉我使馆", "level": ""}, {"title": "财联社：美股三大指数集体收跌，英伟达两日市值蒸发超 4200 亿美元", "summary": "财联社 11 月 11 日讯，随着美国 10 月 CPI 数据超出预期、市场计入美联储 12 月至少加息 25 个基点，美股结束此前两日反弹，标普 500 指数跌 0.38% 报 7520.93 点、纳斯达克综合指数跌 0.74% 报 25065.87 点、道琼斯工业平均指数跌 0.3% 报 52231.89 点。英伟达周二继续下跌超 5%，单日市值蒸发超 2090 亿美元（约合 1.39 万亿元人民币），本周前两天累计蒸发超 4200 亿美元（约 2.85 万亿元）。英伟达董事会宣布聘请前纽约南区联邦检察官 Joon H. Kim 及其律所开展独立调查。", "sources": [{"platform": "F01 · 财联社", "url": "https://m.cls.cn/detail/2530855"}], "label": "美股 / 科技股", "level": ""}, {"title": "中央气象台 18 时发布大雾黄色预警：京津苏辽黔局地有强浓雾", "summary": "中央气象台 11 月 11 日 18 时发布大雾黄色预警：11 日夜间至 12 日上午，北京东南部、天津大部、河北东部和中南部、江苏中北部、辽宁东部、贵州西部等地有大雾，其中北京东南部、河北中南部、江苏北部、辽宁东部部分地区有浓雾，局地有能见度低于 200 米的强浓雾。11 日 20 时至 12 日 20 时，新疆北疆阿勒泰山区局地有暴雪（10~12 毫米）。", "sources": [{"platform": "W01 · 中央气象台·大雾黄色预警（新华日报转载）", "url": "http://mp.weixin.qq.com/s?__biz=MzA5NzExMzMxMw==&mid=2654734621&idx=1&sn=37dfc91818ff48f4d03b68cc72cf90d7"}], "label": "交通出行 / 天气", "level": ""}, {"title": "土耳其钢铁厂爆炸已致 18 死 15 伤，检方决定拘留 11 人", "summary": "据土耳其方面 11 月 10 日消息，该国西部伊兹密尔省哈巴斯钢铁厂 11 月 9 日发生的爆炸事故已造成 18 人死亡、15 人受伤，其中一人伤势严重。土耳其司法部副部长詹·通贾伊 11 月 10 日说，检方已对 11 人作出拘留决定，涉及工厂管理人员、炼钢车间负责人、设备维护及检查人员以及企业董事会主席等。初步调查显示，事故发生时工厂正进行设备维护作业，起重机相关结构坠落后导致爆炸并引发火灾。", "sources": [{"platform": "N01 · 央视新闻客户端·云南网转载", "url": "https://news.yunnan.cn/system/2026/11/11/034193348.shtml"}], "label": "境外重大事故 / 伤亡", "level": ""}, {"title": "央行三季度货币政策执行报告：1 年期 LPR 连续 16 个月保持 3.0%", "summary": "11 月 11 日央行发布 2026 年三季度货币政策执行报告。9 月末社融存量同比增长 7.1%、M2 增长 7.2%，9 月新发放企业贷款利率略低于 3.0%、新发放个人住房贷款利率约 3.1%、DR001 均值 1.34%。1 年期 LPR 已连续 16 个月停在 3.0%，上次调整为 2025 年 5 月的 10 个基点。报告措辞由「充分发挥各项存量政策效能，及时谋划出台务实管用的增量政策」调整为「发挥存量政策与增量政策的集成效应」。", "sources": [{"platform": "M04 · 中国金融网", "url": "https://www.financeun.com/newsDetail/66727.shtml"}], "label": "贷款利息 / LPR", "level": ""}, {"title": "四部门发文加强创新药安全合理配备使用，二级以上医疗机构及时纳入用药目录", "summary": "11 月 10 日国家卫生健康委官网发布关于进一步做好创新药安全合理配备使用工作的通知（国卫办医政发〔2026〕18 号），要求二级以上医疗机构优化创新药进院制度与流程，及时召开药事管理与药物治疗学委员会会议，将国家医保谈判药品目录和商业健康保险创新药品目录内的 1 类新药纳入本机构用药目录并维护进信息系统；紧密型医联体应动态调整用药目录，促进基层用药上下衔接。", "sources": [{"platform": "M07 · 国家卫健委通知（中国医药信息查询平台转载）", "url": "https://m.dayi.org.cn/information/641.html"}], "label": "医保 / 创新药进院", "level": ""}, {"title": "澎湃新闻：上海高境镇人大把协商议事会场搬到小区凉亭，4 个健身苑点完成升级", "summary": "11 月 11 日报道，上海宝山区高境镇人大把协商议事的会场搬到小区凉亭、社区文化长廊，收集居民对晚间文体活动、就近康养配套、普惠少儿公益活动的建议。全镇 4 个小区健身苑点已完成升级改造，11 个居民区养老服务站完成选址筹备，并逐步形成「民声收集—会议定题—调研摸底—协商聚智—督办落实—反馈评价」的全链条闭环机制。", "sources": [{"platform": "C06 · 澎湃新闻", "url": "https://www.thepaper.cn/newsDetail_forward_34452351"}], "label": "基层治理 / 养老服务", "level": ""}, {"title": "央行报告披露：房地产融资协调机制「白名单」累计审批贷款超 8.4 万亿元", "summary": "11 月 11 日报道，央行官网发布《国务院关于金融工作情况的报告》，披露商业银行通过城市房地产融资协调机制「白名单」累计审批通过贷款超 8.4 万亿元。报告还提出降低商业用房购房贷款最低首付比例、实施居民购房贷款贴息政策、完善房地产信贷基础性制度。2026 年 9 月新发放个人房贷加权平均利率 3.05%，新发放企业贷款利率 2.96%。", "sources": [{"platform": "M03 · 凤凰网房产·腾讯新闻", "url": "https://new.qq.com/rain/a/20261111A0CLJ600"}], "label": "房贷 / 房价", "level": ""}, {"title": "新华网：俄美乌阿布扎比三方会谈首日持续近 4 小时，俄乌互袭继续", "summary": "新华社阿布扎比 11 月 10 日电，新一轮俄罗斯、美国和乌克兰三方会谈 10 日在阿联酋首都阿布扎比举行，探讨推动乌克兰危机政治解决的途径，首日会谈持续近 4 小时，预计持续两天。美方代表包括总统特使威特科夫和库什纳。乌方代表乌梅罗夫表示关键优先事项是停止敌对行动、获得可靠战后安全保障、推进人道主义工作。这是今年 2 月谈判陷入停滞以来三方时隔 9 个月重启面对面磋商。俄外长拉夫罗夫 10 日表示，在不清楚局势后续发展的情况下，俄方不会同意「休战」或「停火」。俄乌之间的武装互袭仍在继续。", "sources": [{"platform": "N01 · 新华网·新华社", "url": "https://www.xinhuanet.com/milpro/20261111/9206481ee245444ba7ac28e19f0000d4/c.html"}], "label": "俄美乌 / 地缘谈判", "level": ""}, {"title": "中央气象台海洋天气公报：南部海域有 6~7 级风", "summary": "中央气象台海洋天气公报预报：11 月 10 日 20 时至 11 日 20 时，台湾海峡、巴士海峡、南海北部和中部海域有 6~7 级、阵风 8 级东北风；东海大部、台湾以东洋面、北部湾有 5~6 级、阵风 7 级偏北到东北风。11 日 20 时至 12 日 20 时，南海东北部海域有 6~7 级、阵风 8 级偏东风。", "sources": [{"platform": "W02 · 中央气象台·海洋天气公报", "url": "https://www.nmc.cn/publish/marine/forecast.htm?x=23&y=19"}], "label": "交通出行 / 天气", "level": ""}, {"title": "央广网：我国算力总规模达 310 万 PFLOPS 位居世界第二，推进具身智能数据标准制定", "summary": "记者从国家数据局了解到，全国数据标准化技术委员会 2026 年第二次「标准周」活动在福建厦门举行，此次正式成立具身智能数据标准起草工作组及气象、卫生健康、电力、商务等 4 个行业应用标准起草工作组，加快推进「十五五」期间数据领域相关标准制定。最新数据显示，我国算力总规模已达到 310 万 PFLOPS，位居世界第二。", "sources": [{"platform": "I01 · 央广网", "url": "https://news.cnr.cn/native/gd/kx/20261110/t20261110_527868386.shtml"}], "label": "算力 / 具身智能标准", "level": ""}, {"title": "新华视点：多地最低工资标准上调，谁将受益", "summary": "11 月 11 日新华视点报道，今年以来多个省份上调最低工资标准。自 9 月 1 日起云南一、二、三类地区月最低工资标准分别从 2170 元、2020 元、1870 元提高到 2270 元、2120 元、1970 元；山西 2026 年最新调整后三档最低工资全部突破 2000 元。最低工资上调会直接带动试用期工资、工伤职工伤残津贴等保障待遇同步变化，企业不能以加班费、夜班津贴、餐补、交通补贴等方式冲抵最低工资。", "sources": [{"platform": "M06 · 新华视点", "url": "http://mp.weixin.qq.com/s?__biz=MzA3NzMyMjUxMw==&mid=2653020675&idx=1&sn=3d0b051a431f28ae534a5d8595eeb68e"}], "label": "社保 / 最低工资", "level": ""}, {"title": "中国经济网：利润增长显示工业升级含金量", "summary": "11 月 11 日中国经济网刊文分析工业利润数据，指出部分新兴细分赛道投资偏热，存在同质化布局、低水平竞争风险；建议聚焦算力芯片、先进存储、电子材料、工业母机等关键领域支持龙头企业牵头技术攻关，深入实施「人工智能+」行动，在冶金、化工、装备、轻工等行业推进数智化改造，同时健全产业链风险预警机制、规范新兴领域竞争秩序。", "sources": [{"platform": "D01 · 中国经济网", "url": "http://ipaper.ce.cn/pad/content/202611/11/content_341704.html"}], "label": "工业利润 / 产业升级", "level": ""}, {"title": "花 25000 元可当「两弹一星科教委」副主任？官方声明均属编造并已报警", "summary": "11 月 11 日报道，中华儿童文化艺术促进会两弹一星科普教育工作委员会 11 月 10 日发布声明：有人以缴费 25000 元即可获得委员会部门副主任职务（含证件、服装、车牌）并四处宣发，该信息为虚假内容，相关内容均属个人编造，已报警并保留依法追索权利。此前江苏卫视《江苏新闻》报道，网上有人推销该委员会「全国副主任」名额，配套工作证、车内牌照及类似军装的礼服。该组织公众号认证主体年检信息显示 2024 年不合格。", "sources": [{"platform": "C05 · 澎湃新闻", "url": "https://www.thepaper.cn/newsDetail_forward_34451661"}], "label": "辟谣 / 虚假任职", "level": ""}, {"title": "市场监管总局就《电子计价秤网络销售计量合规要求》公开征求意见", "summary": "11 月 11 日市场监管总局就《电子计价秤网络销售计量合规要求（征求意见稿）》面向社会公开征求意见，意见征集时间为 11 月 11 日至 12 月 10 日。征求意见稿明确网络销售经营主体、网络交易平台的计量管理义务，围绕准入门槛、进货管控、产品硬件性能、售后维修划定合规标尺，把型式批准、防作弊、溯源管理落实到网络销售各环节，禁止明示或暗示产品具备调秤作弊功能；要求平台建立作弊关键词拦截纠错复核机制。", "sources": [{"platform": "C05 · 国家市场监督管理总局", "url": "https://www.samr.gov.cn/xw/sj/art/2026/art_6684c2c179fa40ce96bf5873d84016a3.html"}], "label": "消费计量 / 监管", "level": ""}, {"title": "中证网：第九届进博会闭幕，按一年计意向成交额 854.5 亿美元创历史新高", "summary": "11 月 11 日中证网报道，第九届中国国际进口博览会于 11 月 10 日闭幕，共有 162 个国家、地区和国际组织参与，按一年计意向成交金额达 854.5 亿美元、较上届增长 2.3%。参展企业达 4142 家，整体展览展示面积首次突破 44 万平方米，企业展面积首达 37 万平方米，世界 500 强和行业龙头企业超过 300 家，全球首发、亚洲首秀、中国首展代表性展品达 485 件；共组建 51 个交易团和 700 多个交易分团，注册观众超过 47 万人。", "sources": [{"platform": "D01 · 中国证券报·中证网", "url": "https://www.cs.com.cn/xwzx/01/2026/11/11/detail_2026111110051319.html"}], "label": "进博会 / 外贸", "level": ""}, {"title": "江苏扬州市江都区发生 3.9 级地震，中国地震局启动四级应急响应", "summary": "中国地震台网正式测定：11 月 11 日 6 时 15 分，江苏扬州市江都区（北纬 32.62 度、东经 119.60 度）发生 3.9 级地震，震源深度 20 公里。地震发生后，中国地震局迅速启动四级应急响应，调度中国地震台网中心、江苏省地震局开展应急处置，要求联合会商、加强震情监测和震后趋势研判。", "sources": [{"platform": "S01 · 江苏省地震局", "url": "https://www.jsdzj.gov.cn/art/2026/11/11/art_91_21924.html"}], "label": "地震 / 国家级响应", "level": ""}, {"title": "光明日报：黑龙江哈拉新村把学习全会精神成果转化成发展实招", "summary": "11 月 11 日《光明日报》报道，黑龙江齐齐哈尔梅里斯达斡尔族区哈拉新村为迎接第五届东北露营大会，镇里召集村民和商户征求意见，村民就剪纸体验台、停车位规划、易滑路段防滑沙、巡回保洁、统一规范农家餐与民宿价格服务等提出建议，镇党委副书记逐条记入民情日记。", "sources": [{"platform": "C06 · 光明日报·光明网", "url": "https://news.gmw.cn/2026-11/11/content_39095280.htm"}], "label": "基层治理 / 乡村文旅", "level": ""}, {"title": "中方向美方移交「驼峰航线」美军援华抗日飞行员遗骸", "summary": "新华社成都 11 月 10 日电，中美两军 10 日在四川成都举行美军遗骸移交仪式，中方向美方移交一批在「驼峰航线」沿线区域发掘的美军援华抗日飞行员遗骸。二战期间中美开辟的「驼峰航线」是战时中国与外界保持联系的重要国际通道，1000 多名中美机组人员牺牲在这条航线上。这批遗骸在海拔 5000 多米的冰川上沉寂 80 多年，由中国民间建川博物馆组织搜寻队找到。", "sources": [{"platform": "N01 · 新华社·央视网转载", "url": "https://news.cctv.com/2026/11/11/ARTIRtI50p1tpflyeZmQwH9Q261111.shtml"}], "label": "国际·历史与人道", "level": ""}, {"title": "央视《真相来了》：多地车主收到「车辆召回」短信系精准诈骗，警方给出三条核实渠道", "summary": "近期部分车主收到以「车辆安全隐患、质保失效」为由的召回短信，诱导点击钓鱼链接提交身份证、银行卡、短信验证码。北京警方介绍，诈骗分子通过短信和 iMessage 发送虚假召回信息，扫码后先「验证身份」取得信任，再诱导转账。警方提示，正规车企召回不会通过陌生网址、线上会议办理理赔，更不会要求刷流水或向陌生账户转账；可通过联系熟悉的 4S 店、拨打车企官方电话、在国家市场监督管理总局召回中心官网录入车辆信息三种渠道核实。涉事多家车企已声明相关通知及附件均非官方发布，部分受骗车主已报案。", "sources": [{"platform": "S06 · 央视网·真相来了", "url": "https://ysxw.cctv.cn/article.html?toc_style_id=feeds_default&item_id=11814603208508180486&channelId=1119"}], "label": "人身安全与反诈", "level": ""}], "cover": [{"rank": 1, "label": "油价 / 成品油调价", "title": "机构预测 11 月 12 日 24 时成品油调价或下调，92 号汽油每升降约 0.3 元", "sem": {"value": "0.3", "unit": "元 / 升", "trend": "down", "stamp": "调价窗口 11.12 24:00", "board": "民生服务", "org": "机构预测", "src": "机构预测"}}, {"rank": 2, "label": "应季健康提示 / 流感", "title": "湖北疾控：已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "湖北疾控", "brief": "已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主。", "role": "提示流行毒株与趋势", "src": "湖北疾控"}}, {"rank": 3, "label": "700 号段 / 个人信息保护", "title": "工信部批复 10 家企业开展 700 号段号码保护服务试点", "sem": {"board": "公共安全与出行"}}, {"rank": 4, "label": "应季健康提示 / 流感", "title": "成都疾控、成都气象联合提示：流感综合指数 IV 级，处于活跃期", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "成都疾控 × 成都气象", "brief": "流感综合指数 IV 级，处于活跃期。", "role": "本地风险等级", "src": "成都疾控 / 成都气象"}}, {"rank": 5, "label": "外贸 / 中欧班列", "title": "光明网：中欧班列重箱率连续 50 个月保持 100%，「班列好物」进入消费者购物车", "sem": {"board": "产业经济"}}, {"rank": 6, "label": "重大司法 / 命案宣判", "title": "泸州「花坛藏尸案」一审宣判：一死刑、一死缓", "sem": {"board": "公共安全与出行"}}, {"rank": 7, "label": "应季健康提示 / 呼吸道传染病", "title": "中国疾控中心提示秋冬呼吸道传染病高发季四条防护要点", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "中国疾控中心", "brief": "发布秋冬呼吸道传染病高发季四条防护要点。", "role": "可执行的行动建议", "src": "中国疾控中心"}}, {"rank": 8, "label": "交通出行 / 天气", "title": "中央气象台每日天气提示：云南南部及华南降雨增多，华北黄淮大气扩散条件转差", "sem": {"board": "公共安全与出行"}}, {"rank": 9, "label": "两岸交流 / 消费", "title": "中新网：国台办指「双十一」消费热见证两岸生活方式相通", "sem": {"board": "民生服务"}}, {"rank": 10, "label": "新能源车 / 产业数据", "title": "中汽协：10 月新能源汽车新车销量占比达 64.3%，汽车产销双双超过 300 万辆", "sem": {"board": "产业经济"}}], "source_url": "https://docs.qq.com/sheet/DTGFjR0xXWnVZcWR6", "known_file_ids": ["LnowoKdDgopd", "DTG5KUGNqQVBSTVdt", "DTG5vd29LZERnb3Bk"], "script_hash_baseline": "44f23f3d73b9", "sheet_script": "处理后的数据", "sheet_cover": "排名最靠前的10条", "voice_endpoint": "https://libretts.is-an.org/api/tts", "note": "表格直达：无渠道 md / 无 SKILL / 无打分筛选 / 无 AI 编排 / 无密钥", "window_statement": "今日要闻为昨日 20:00 到今日 20:00 的资讯。", "news_window": {"start": "昨日 20:00", "end": "今日 20:00", "tz": "Asia/Shanghai"}, "voice_volume_default": 1.0, "issue_cfg": {"date": "2026-11-13", "weekday": "星期五", "date_cn": "2026年11月13日，星期五", "date_line": "2026-11-13 星期五", "issue_no": "第01期", "notes": ""}, "cover_header": {"title": "每日要闻速览", "show_title": true, "show_date": true, "show_issue": true}, "rebuilt_at": "2026-11-13 10:13:14", "trigger": {"mode": "workflow_dispatch", "configurable": false, "note": "无定时；内容更新由 Actions 手动 Run workflow 触发。"}, "subtitle_cfg": {"on": true, "burn_in": true, "soft_track": true, "font_size": 44, "color": "#FFFFFF", "outline_color": "#0d1b2a", "position": "bottom", "background": true, "font": "WenQuanYi Micro Hei", "note": "默认烧录硬字幕（Chrome/手机播放器可见）+ 保留 mov_text 软轨 + 独立 SRT；开关真能关。"}, "typewriter": {"on": true, "target": "subtitle", "ms_per_char": 55, "max_steps": 8}, "export_size": "portrait", "issue_mode": "auto", "cover_count": 10, "bgm_note": "配乐仅自定义上传；无内置曲库。", "semantic": {"mode": "L1", "enabled": true, "note": "字段全部来自表格可选列；未填列时不推断、不自动抽取，缺列不显示对应元素，版式按素材自动选择", "count": 10, "hero": {"index": 1, "rank": 1, "title": "机构预测 11 月 12 日 24 时成品油调价或下调，92 号汽油每升降约 0.3 元", "value": "0.3", "unit": "元 / 升", "arrow": "↓", "stamp": "调价窗口 11.12 24:00", "board": "民生服务", "org": "机构预测", "src": "机构预测", "brief": "", "summary": "11 月 11 日多家机构测算，11 月 12 日 24 时新一轮国内成品油零售限价调整窗口开启，本轮下调为大概率事件", "topic_id": ""}, "topics": [{"id": "T1", "name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "items": [{"index": 2, "rank": 2, "title": "湖北疾控：已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主", "org": "湖北疾控", "brief": "已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主。", "role": "提示流行毒株与趋势", "src": "湖北疾控"}, {"index": 4, "rank": 4, "title": "成都疾控、成都气象联合提示：流感综合指数 IV 级，处于活跃期", "org": "成都疾控 × 成都气象", "brief": "流感综合指数 IV 级，处于活跃期。", "role": "本地风险等级", "src": "成都疾控 / 成都气象"}, {"index": 7, "rank": 7, "title": "中国疾控中心提示秋冬呼吸道传染病高发季四条防护要点", "org": "中国疾控中心", "brief": "发布秋冬呼吸道传染病高发季四条防护要点。", "role": "可执行的行动建议", "src": "中国疾控中心"}]}], "rest": [{"index": 3, "rank": 3, "title": "工信部批复 10 家企业开展 700 号段号码保护服务试点", "board": "公共安全与出行"}, {"index": 5, "rank": 5, "title": "光明网：中欧班列重箱率连续 50 个月保持 100%，「班列好物」进入消费者购物车", "board": "产业经济"}, {"index": 6, "rank": 6, "title": "泸州「花坛藏尸案」一审宣判：一死刑、一死缓", "board": "公共安全与出行"}, {"index": 8, "rank": 8, "title": "中央气象台每日天气提示：云南南部及华南降雨增多，华北黄淮大气扩散条件转差", "board": "公共安全与出行"}, {"index": 9, "rank": 9, "title": "中新网：国台办指「双十一」消费热见证两岸生活方式相通", "board": "民生服务"}, {"index": 10, "rank": 10, "title": "中汽协：10 月新能源汽车新车销量占比达 64.3%，汽车产销双双超过 300 万辆", "board": "产业经济"}], "boards": ["产业经济", "健康防护", "公共安全与出行", "民生服务"], "stats": [{"num": "10", "label": "条要闻"}, {"num": "04", "label": "个板块"}, {"num": "01", "label": "条头条"}], "topic_count": 3, "rest_count": 6, "columns": ["数值", "单位", "趋势", "时间角标", "板块", "专题ID", "专题名", "角标", "机构短名", "主句", "角色标签", "来源短名"]}}</script>
+<script id="payload" type="application/json">{"version": "1.0", "date": "2026-11-13 星期五", "issue": "第01期", "open": "早上好，今天是2026年11月13日，星期五。以下为今日要闻速览。", "close": "以上是今日要闻速览，感谢收听，下期见。", "disclaimer": "内容依据公开信息整理，具体以官方发布为准；仅供参考，不构成投资、医疗或法律建议。", "news": [{"title": "机构预测 11 月 12 日 24 时成品油调价或下调，92 号汽油每升降约 0.3 元", "summary": "11 月 11 日多家机构测算，11 月 12 日 24 时新一轮国内成品油零售限价调整窗口开启，本轮下调为大概率事件。金联创测算截至 11 月 11 日第九个工作日参考原油品种均价 97.62 美元/桶、变化率 -8.21%，对应汽柴油应下调 440 元/吨；卓创资讯预计下调 410 元/吨，折合 92 号汽油、0 号柴油每升下调约 0.3 元，加满 50 升 92 号汽油约省 15 元。最终调价结果及幅度以国家发展改革委正式公告为准。", "sources": [{"platform": "M02 · 极目新闻·网易", "url": "https://www.163.com/dy/article/LBFR6QGB053469LG.html"}, {"platform": "M02 · 光明网", "url": "https://m.gmw.cn/2026-11/11/content_1304585016.htm"}], "label": "油价 / 成品油调价", "level": "", "sem": {"value": "0.3", "unit": "元 / 升", "trend": "down", "stamp": "调价窗口 11.12 24:00", "board": "民生服务", "org": "机构预测", "src": "机构预测"}}, {"title": "湖北疾控：已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主", "summary": "11 月 11 日湖北省疾控中心通报，湖北已进入 2026 年秋冬流感流行季的上升阶段，当前三种毒株共同流行，以甲型 H3N2 为主，绝大多数感染者为轻症。提示高危人群优先完成流感疫苗接种，学校、托幼机构、养老院等重点场所做好通风与晨午检，出现流感样症状尽量居家休息，去密闭人群密集场所戴好口罩，高危人群感染后及时就医评估抗病毒治疗。", "sources": [{"platform": "M08 · 湖北日报·微博", "url": "https://m.weibo.cn/status/5364135388251466"}], "label": "应季健康提示 / 流感", "level": "", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "湖北疾控", "brief": "已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主。", "role": "提示流行毒株与趋势", "src": "湖北疾控"}}, {"title": "工信部批复 10 家企业开展 700 号段号码保护服务试点", "summary": "11 月 11 日人民日报客户端报道，工业和信息化部批复 10 家企业开展号码保护服务业务试点，核配「700」专用码号资源，先期在外卖、网约车等场景探索。骑手、司机通过 700 开头中间号与用户通话，互相隐藏真实号码，用于减少个人信息泄露与电信网络诈骗。此前行业普遍用普通手机号作中间号，用户无法区分来电是否为中间号。", "sources": [{"platform": "I01 · 人民日报客户端·今日头条", "url": "https://www.toutiao.com/article/7706865536772194826/"}], "label": "700 号段 / 个人信息保护", "level": "", "sem": {"board": "公共安全与出行"}}, {"title": "成都疾控、成都气象联合提示：流感综合指数 IV 级，处于活跃期", "summary": "11 月 11 日报道，成都疾控、成都气象联合发布提示，成都市流感综合指数分级为 IV 级，流感处于活跃期，本月降温降水过程将增加发病风险。成都市疾控中心专家提示，接种流感疫苗是最有效手段，幼儿、老人、慢性病患者为重症高危人群；今年上市的流感疫苗均为三价疫苗，覆盖甲型 H1N1、甲型 H3N2 和乙型 Victoria 系。建议居家每日通风 2 至 3 次、每次半小时，孩子出现发烧咳嗽及时居家休息、不带病返校。", "sources": [{"platform": "M08 · 腾讯新闻·转成都疾控", "url": "https://new.qq.com/rain/a/20261111A0DWU000"}], "label": "应季健康提示 / 流感", "level": "", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "成都疾控 × 成都气象", "brief": "流感综合指数 IV 级，处于活跃期。", "role": "本地风险等级", "src": "成都疾控 / 成都气象"}}, {"title": "光明网：中欧班列重箱率连续 50 个月保持 100%，「班列好物」进入消费者购物车", "summary": "国家发展改革委 11 月 11 日表示，截至 2026 年 10 月，中欧班列重箱率已连续 50 个月保持在 100%，实现重去重回、双向满载，综合物流成本显著下降。2026 年 1 至 10 月开行 18661 列、运送货物 186.5 万标箱，同比分别增长 14.6% 和 11.2%；每周在中国 9 座城市和欧洲 6 座城市间稳定开行 22 列。国家发展改革委区域开放司司长梁林冲介绍，消费者可通过中欧班列商贸平台选购西班牙红酒、荷兰奶酪等欧洲商品。", "sources": [{"platform": "D01 · 央视网·光明网转载", "url": "https://m.gmw.cn/2026-11/11/content_1304585085.htm"}], "label": "外贸 / 中欧班列", "level": "", "sem": {"board": "产业经济"}}, {"title": "泸州「花坛藏尸案」一审宣判：一死刑、一死缓", "summary": "11 月 10 日泸州中院一审公开宣判：被告人陈某芬犯故意杀人罪、伪造身份证件罪、使用虚假身份证件罪、偷越国（边）境罪，数罪并罚决定执行死刑，剥夺政治权利终身，并处罚金 2.7 万元；被告人杨某根犯故意杀人罪，判处死刑缓期 2 年执行，剥夺政治权利终身；驳回附带民事诉讼原告人黄某的诉讼请求。法院查明，1997 年陈某芬为逃避 4 万元债务，与丈夫杨某根合谋将借款人吴某萍约至仓库杀害，尸体转移至楼顶花坛掩埋，案件于 2026 年 7 月 10 日开庭。", "sources": [{"platform": "S03 · 四川长安网", "url": "https://www.sichuanpeace.gov.cn/fzsc/20261111/2999821.html"}], "label": "重大司法 / 命案宣判", "level": "", "sem": {"board": "公共安全与出行"}}, {"title": "中国疾控中心提示秋冬呼吸道传染病高发季四条防护要点", "summary": "中国疾控中心发布科普提示：秋冬季节流感、呼吸道合胞病毒、鼻病毒、肺炎支原体感染等急性呼吸道传染病迎来高发季。防护要点包括勤洗手、科学佩戴口罩，保持规律作息与均衡饮食，老人孩子及慢病人群出现发热咳嗽及时就诊，不提倡带病上学上班，并积极主动接种流感等疫苗。", "sources": [{"platform": "M08 · 中国疾控中心", "url": "https://wv.video.qq.com/export/UzFfBgAAxJipZBBrdQyXk8zT4DBZDcdDEZcZbgYnZDwSCQHmHnA"}], "label": "应季健康提示 / 呼吸道传染病", "level": "", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "中国疾控中心", "brief": "发布秋冬呼吸道传染病高发季四条防护要点。", "role": "可执行的行动建议", "src": "中国疾控中心"}}, {"title": "中央气象台每日天气提示：云南南部及华南降雨增多，华北黄淮大气扩散条件转差", "summary": "中央气象台 11 月 11 日 08 时发布每日天气提示：预计 11 日至 13 日，云南、广西、广东、贵州、湖南、江西、福建等地降水增多增强；11 日至 15 日新疆北部山区和沿天山地区有明显降雪，北疆西部山区有暴雪或大暴雪（10~28 毫米）。11 日至 14 日华北中南部、黄淮及汾渭平原有轻至中度霾，13 日至 14 日影响最重，北京东南部、天津、河北中南部、河南北部、山东中西部、苏皖等地局地可达重度霾。提醒公众关注雨雪和局地强降雨对交通出行的不利影响。", "sources": [{"platform": "W01 · 中央气象台·每日天气提示", "url": "https://www.nmc.cn/publish/weatherperday/index.htm?v=2024061411"}], "label": "交通出行 / 天气", "level": "", "sem": {"board": "公共安全与出行"}}, {"title": "中新网：国台办指「双十一」消费热见证两岸生活方式相通", "summary": "中新社北京 11 月 11 日电，国务院台办例行新闻发布会 11 日在北京举行。发言人张晗应询表示，「双十一」在两岸掀起的消费热潮，是两岸经贸联系紧密、两岸同胞生活方式相通的生动见证；大陆电商平台为台湾民众提供了安全便捷的网购环境和质优量足的各类好物。张晗还就世界互联网大会乌镇峰会海峡两岸暨港澳互联网发展论坛、「妈祖」气象智能预警方案等答记者问。", "sources": [{"platform": "M05 · 中国新闻网", "url": "https://www.chinanews.com.cn/gn/2026/11-11/10730095.shtml"}], "label": "两岸交流 / 消费", "level": "", "sem": {"board": "民生服务"}}, {"title": "中汽协：10 月新能源汽车新车销量占比达 64.3%，汽车产销双双超过 300 万辆", "summary": "11 月 11 日中国汽车工业协会发布数据：2026 年 10 月汽车产销分别完成 306.3 万辆和 301.6 万辆，环比增长 2.5% 和 2%，同比下降 8.8% 和 9.2%；新能源汽车产销分别完成 201.7 万辆和 194 万辆，同比增长 13.8% 和 13.1%，月度新车销量占比达 64.3%。10 月汽车出口 106.6 万辆、同比增长 60.2%，连续 5 个月保持在 100 万辆以上；新能源汽车出口 60.6 万辆、同比增长 1.4 倍。", "sources": [{"platform": "I02 · 央视网", "url": "https://news.cctv.cn/2026/11/11/ARTIfgLkoGZV7AHZb47skhDb261111.shtml"}], "label": "新能源车 / 产业数据", "level": "", "sem": {"board": "产业经济"}}, {"title": "中国驻日使馆敦促日方依法严惩侵闯使馆凶犯，日本检方建议判刑 18 个月", "summary": "新华社东京 11 月 10 日电，中国驻日本大使馆发言人 10 日就村田晃大非法持刀侵闯中国驻日本大使馆案第二次开庭答记者问，表示相关案情事实清楚、证据确凿，再次敦促日方依法严惩凶犯，不得为其开脱罪责。日本东京地方法院 10 日再次举行庭审，日本检方建议判处其 18 个月监禁，辩方请求判处罚金。发言人指出，日本自卫队现役官员持刀侵闯中国大使馆并发出恐怖威胁，严重侵犯中国主权和尊严，严重违反《维也纳外交关系公约》。", "sources": [{"platform": "N01 · 新华社·央视网转载", "url": "https://news.cctv.cn/2026/11/11/ARTIT5ye4pBGqaqDSoP61myL261111.shtml"}], "label": "涉外司法 / 涉我使馆", "level": ""}, {"title": "财联社：美股三大指数集体收跌，英伟达两日市值蒸发超 4200 亿美元", "summary": "财联社 11 月 11 日讯，随着美国 10 月 CPI 数据超出预期、市场计入美联储 12 月至少加息 25 个基点，美股结束此前两日反弹，标普 500 指数跌 0.38% 报 7520.93 点、纳斯达克综合指数跌 0.74% 报 25065.87 点、道琼斯工业平均指数跌 0.3% 报 52231.89 点。英伟达周二继续下跌超 5%，单日市值蒸发超 2090 亿美元（约合 1.39 万亿元人民币），本周前两天累计蒸发超 4200 亿美元（约 2.85 万亿元）。英伟达董事会宣布聘请前纽约南区联邦检察官 Joon H. Kim 及其律所开展独立调查。", "sources": [{"platform": "F01 · 财联社", "url": "https://m.cls.cn/detail/2530855"}], "label": "美股 / 科技股", "level": ""}, {"title": "中央气象台 18 时发布大雾黄色预警：京津苏辽黔局地有强浓雾", "summary": "中央气象台 11 月 11 日 18 时发布大雾黄色预警：11 日夜间至 12 日上午，北京东南部、天津大部、河北东部和中南部、江苏中北部、辽宁东部、贵州西部等地有大雾，其中北京东南部、河北中南部、江苏北部、辽宁东部部分地区有浓雾，局地有能见度低于 200 米的强浓雾。11 日 20 时至 12 日 20 时，新疆北疆阿勒泰山区局地有暴雪（10~12 毫米）。", "sources": [{"platform": "W01 · 中央气象台·大雾黄色预警（新华日报转载）", "url": "http://mp.weixin.qq.com/s?__biz=MzA5NzExMzMxMw==&mid=2654734621&idx=1&sn=37dfc91818ff48f4d03b68cc72cf90d7"}], "label": "交通出行 / 天气", "level": ""}, {"title": "土耳其钢铁厂爆炸已致 18 死 15 伤，检方决定拘留 11 人", "summary": "据土耳其方面 11 月 10 日消息，该国西部伊兹密尔省哈巴斯钢铁厂 11 月 9 日发生的爆炸事故已造成 18 人死亡、15 人受伤，其中一人伤势严重。土耳其司法部副部长詹·通贾伊 11 月 10 日说，检方已对 11 人作出拘留决定，涉及工厂管理人员、炼钢车间负责人、设备维护及检查人员以及企业董事会主席等。初步调查显示，事故发生时工厂正进行设备维护作业，起重机相关结构坠落后导致爆炸并引发火灾。", "sources": [{"platform": "N01 · 央视新闻客户端·云南网转载", "url": "https://news.yunnan.cn/system/2026/11/11/034193348.shtml"}], "label": "境外重大事故 / 伤亡", "level": ""}, {"title": "央行三季度货币政策执行报告：1 年期 LPR 连续 16 个月保持 3.0%", "summary": "11 月 11 日央行发布 2026 年三季度货币政策执行报告。9 月末社融存量同比增长 7.1%、M2 增长 7.2%，9 月新发放企业贷款利率略低于 3.0%、新发放个人住房贷款利率约 3.1%、DR001 均值 1.34%。1 年期 LPR 已连续 16 个月停在 3.0%，上次调整为 2025 年 5 月的 10 个基点。报告措辞由「充分发挥各项存量政策效能，及时谋划出台务实管用的增量政策」调整为「发挥存量政策与增量政策的集成效应」。", "sources": [{"platform": "M04 · 中国金融网", "url": "https://www.financeun.com/newsDetail/66727.shtml"}], "label": "贷款利息 / LPR", "level": ""}, {"title": "四部门发文加强创新药安全合理配备使用，二级以上医疗机构及时纳入用药目录", "summary": "11 月 10 日国家卫生健康委官网发布关于进一步做好创新药安全合理配备使用工作的通知（国卫办医政发〔2026〕18 号），要求二级以上医疗机构优化创新药进院制度与流程，及时召开药事管理与药物治疗学委员会会议，将国家医保谈判药品目录和商业健康保险创新药品目录内的 1 类新药纳入本机构用药目录并维护进信息系统；紧密型医联体应动态调整用药目录，促进基层用药上下衔接。", "sources": [{"platform": "M07 · 国家卫健委通知（中国医药信息查询平台转载）", "url": "https://m.dayi.org.cn/information/641.html"}], "label": "医保 / 创新药进院", "level": ""}, {"title": "澎湃新闻：上海高境镇人大把协商议事会场搬到小区凉亭，4 个健身苑点完成升级", "summary": "11 月 11 日报道，上海宝山区高境镇人大把协商议事的会场搬到小区凉亭、社区文化长廊，收集居民对晚间文体活动、就近康养配套、普惠少儿公益活动的建议。全镇 4 个小区健身苑点已完成升级改造，11 个居民区养老服务站完成选址筹备，并逐步形成「民声收集—会议定题—调研摸底—协商聚智—督办落实—反馈评价」的全链条闭环机制。", "sources": [{"platform": "C06 · 澎湃新闻", "url": "https://www.thepaper.cn/newsDetail_forward_34452351"}], "label": "基层治理 / 养老服务", "level": ""}, {"title": "央行报告披露：房地产融资协调机制「白名单」累计审批贷款超 8.4 万亿元", "summary": "11 月 11 日报道，央行官网发布《国务院关于金融工作情况的报告》，披露商业银行通过城市房地产融资协调机制「白名单」累计审批通过贷款超 8.4 万亿元。报告还提出降低商业用房购房贷款最低首付比例、实施居民购房贷款贴息政策、完善房地产信贷基础性制度。2026 年 9 月新发放个人房贷加权平均利率 3.05%，新发放企业贷款利率 2.96%。", "sources": [{"platform": "M03 · 凤凰网房产·腾讯新闻", "url": "https://new.qq.com/rain/a/20261111A0CLJ600"}], "label": "房贷 / 房价", "level": ""}, {"title": "新华网：俄美乌阿布扎比三方会谈首日持续近 4 小时，俄乌互袭继续", "summary": "新华社阿布扎比 11 月 10 日电，新一轮俄罗斯、美国和乌克兰三方会谈 10 日在阿联酋首都阿布扎比举行，探讨推动乌克兰危机政治解决的途径，首日会谈持续近 4 小时，预计持续两天。美方代表包括总统特使威特科夫和库什纳。乌方代表乌梅罗夫表示关键优先事项是停止敌对行动、获得可靠战后安全保障、推进人道主义工作。这是今年 2 月谈判陷入停滞以来三方时隔 9 个月重启面对面磋商。俄外长拉夫罗夫 10 日表示，在不清楚局势后续发展的情况下，俄方不会同意「休战」或「停火」。俄乌之间的武装互袭仍在继续。", "sources": [{"platform": "N01 · 新华网·新华社", "url": "https://www.xinhuanet.com/milpro/20261111/9206481ee245444ba7ac28e19f0000d4/c.html"}], "label": "俄美乌 / 地缘谈判", "level": ""}, {"title": "中央气象台海洋天气公报：南部海域有 6~7 级风", "summary": "中央气象台海洋天气公报预报：11 月 10 日 20 时至 11 日 20 时，台湾海峡、巴士海峡、南海北部和中部海域有 6~7 级、阵风 8 级东北风；东海大部、台湾以东洋面、北部湾有 5~6 级、阵风 7 级偏北到东北风。11 日 20 时至 12 日 20 时，南海东北部海域有 6~7 级、阵风 8 级偏东风。", "sources": [{"platform": "W02 · 中央气象台·海洋天气公报", "url": "https://www.nmc.cn/publish/marine/forecast.htm?x=23&y=19"}], "label": "交通出行 / 天气", "level": ""}, {"title": "央广网：我国算力总规模达 310 万 PFLOPS 位居世界第二，推进具身智能数据标准制定", "summary": "记者从国家数据局了解到，全国数据标准化技术委员会 2026 年第二次「标准周」活动在福建厦门举行，此次正式成立具身智能数据标准起草工作组及气象、卫生健康、电力、商务等 4 个行业应用标准起草工作组，加快推进「十五五」期间数据领域相关标准制定。最新数据显示，我国算力总规模已达到 310 万 PFLOPS，位居世界第二。", "sources": [{"platform": "I01 · 央广网", "url": "https://news.cnr.cn/native/gd/kx/20261110/t20261110_527868386.shtml"}], "label": "算力 / 具身智能标准", "level": ""}, {"title": "新华视点：多地最低工资标准上调，谁将受益", "summary": "11 月 11 日新华视点报道，今年以来多个省份上调最低工资标准。自 9 月 1 日起云南一、二、三类地区月最低工资标准分别从 2170 元、2020 元、1870 元提高到 2270 元、2120 元、1970 元；山西 2026 年最新调整后三档最低工资全部突破 2000 元。最低工资上调会直接带动试用期工资、工伤职工伤残津贴等保障待遇同步变化，企业不能以加班费、夜班津贴、餐补、交通补贴等方式冲抵最低工资。", "sources": [{"platform": "M06 · 新华视点", "url": "http://mp.weixin.qq.com/s?__biz=MzA3NzMyMjUxMw==&mid=2653020675&idx=1&sn=3d0b051a431f28ae534a5d8595eeb68e"}], "label": "社保 / 最低工资", "level": ""}, {"title": "中国经济网：利润增长显示工业升级含金量", "summary": "11 月 11 日中国经济网刊文分析工业利润数据，指出部分新兴细分赛道投资偏热，存在同质化布局、低水平竞争风险；建议聚焦算力芯片、先进存储、电子材料、工业母机等关键领域支持龙头企业牵头技术攻关，深入实施「人工智能+」行动，在冶金、化工、装备、轻工等行业推进数智化改造，同时健全产业链风险预警机制、规范新兴领域竞争秩序。", "sources": [{"platform": "D01 · 中国经济网", "url": "http://ipaper.ce.cn/pad/content/202611/11/content_341704.html"}], "label": "工业利润 / 产业升级", "level": ""}, {"title": "花 25000 元可当「两弹一星科教委」副主任？官方声明均属编造并已报警", "summary": "11 月 11 日报道，中华儿童文化艺术促进会两弹一星科普教育工作委员会 11 月 10 日发布声明：有人以缴费 25000 元即可获得委员会部门副主任职务（含证件、服装、车牌）并四处宣发，该信息为虚假内容，相关内容均属个人编造，已报警并保留依法追索权利。此前江苏卫视《江苏新闻》报道，网上有人推销该委员会「全国副主任」名额，配套工作证、车内牌照及类似军装的礼服。该组织公众号认证主体年检信息显示 2024 年不合格。", "sources": [{"platform": "C05 · 澎湃新闻", "url": "https://www.thepaper.cn/newsDetail_forward_34451661"}], "label": "辟谣 / 虚假任职", "level": ""}, {"title": "市场监管总局就《电子计价秤网络销售计量合规要求》公开征求意见", "summary": "11 月 11 日市场监管总局就《电子计价秤网络销售计量合规要求（征求意见稿）》面向社会公开征求意见，意见征集时间为 11 月 11 日至 12 月 10 日。征求意见稿明确网络销售经营主体、网络交易平台的计量管理义务，围绕准入门槛、进货管控、产品硬件性能、售后维修划定合规标尺，把型式批准、防作弊、溯源管理落实到网络销售各环节，禁止明示或暗示产品具备调秤作弊功能；要求平台建立作弊关键词拦截纠错复核机制。", "sources": [{"platform": "C05 · 国家市场监督管理总局", "url": "https://www.samr.gov.cn/xw/sj/art/2026/art_6684c2c179fa40ce96bf5873d84016a3.html"}], "label": "消费计量 / 监管", "level": ""}, {"title": "中证网：第九届进博会闭幕，按一年计意向成交额 854.5 亿美元创历史新高", "summary": "11 月 11 日中证网报道，第九届中国国际进口博览会于 11 月 10 日闭幕，共有 162 个国家、地区和国际组织参与，按一年计意向成交金额达 854.5 亿美元、较上届增长 2.3%。参展企业达 4142 家，整体展览展示面积首次突破 44 万平方米，企业展面积首达 37 万平方米，世界 500 强和行业龙头企业超过 300 家，全球首发、亚洲首秀、中国首展代表性展品达 485 件；共组建 51 个交易团和 700 多个交易分团，注册观众超过 47 万人。", "sources": [{"platform": "D01 · 中国证券报·中证网", "url": "https://www.cs.com.cn/xwzx/01/2026/11/11/detail_2026111110051319.html"}], "label": "进博会 / 外贸", "level": ""}, {"title": "江苏扬州市江都区发生 3.9 级地震，中国地震局启动四级应急响应", "summary": "中国地震台网正式测定：11 月 11 日 6 时 15 分，江苏扬州市江都区（北纬 32.62 度、东经 119.60 度）发生 3.9 级地震，震源深度 20 公里。地震发生后，中国地震局迅速启动四级应急响应，调度中国地震台网中心、江苏省地震局开展应急处置，要求联合会商、加强震情监测和震后趋势研判。", "sources": [{"platform": "S01 · 江苏省地震局", "url": "https://www.jsdzj.gov.cn/art/2026/11/11/art_91_21924.html"}], "label": "地震 / 国家级响应", "level": ""}, {"title": "光明日报：黑龙江哈拉新村把学习全会精神成果转化成发展实招", "summary": "11 月 11 日《光明日报》报道，黑龙江齐齐哈尔梅里斯达斡尔族区哈拉新村为迎接第五届东北露营大会，镇里召集村民和商户征求意见，村民就剪纸体验台、停车位规划、易滑路段防滑沙、巡回保洁、统一规范农家餐与民宿价格服务等提出建议，镇党委副书记逐条记入民情日记。", "sources": [{"platform": "C06 · 光明日报·光明网", "url": "https://news.gmw.cn/2026-11/11/content_39095280.htm"}], "label": "基层治理 / 乡村文旅", "level": ""}, {"title": "中方向美方移交「驼峰航线」美军援华抗日飞行员遗骸", "summary": "新华社成都 11 月 10 日电，中美两军 10 日在四川成都举行美军遗骸移交仪式，中方向美方移交一批在「驼峰航线」沿线区域发掘的美军援华抗日飞行员遗骸。二战期间中美开辟的「驼峰航线」是战时中国与外界保持联系的重要国际通道，1000 多名中美机组人员牺牲在这条航线上。这批遗骸在海拔 5000 多米的冰川上沉寂 80 多年，由中国民间建川博物馆组织搜寻队找到。", "sources": [{"platform": "N01 · 新华社·央视网转载", "url": "https://news.cctv.com/2026/11/11/ARTIRtI50p1tpflyeZmQwH9Q261111.shtml"}], "label": "国际·历史与人道", "level": ""}, {"title": "央视《真相来了》：多地车主收到「车辆召回」短信系精准诈骗，警方给出三条核实渠道", "summary": "近期部分车主收到以「车辆安全隐患、质保失效」为由的召回短信，诱导点击钓鱼链接提交身份证、银行卡、短信验证码。北京警方介绍，诈骗分子通过短信和 iMessage 发送虚假召回信息，扫码后先「验证身份」取得信任，再诱导转账。警方提示，正规车企召回不会通过陌生网址、线上会议办理理赔，更不会要求刷流水或向陌生账户转账；可通过联系熟悉的 4S 店、拨打车企官方电话、在国家市场监督管理总局召回中心官网录入车辆信息三种渠道核实。涉事多家车企已声明相关通知及附件均非官方发布，部分受骗车主已报案。", "sources": [{"platform": "S06 · 央视网·真相来了", "url": "https://ysxw.cctv.cn/article.html?toc_style_id=feeds_default&item_id=11814603208508180486&channelId=1119"}], "label": "人身安全与反诈", "level": ""}], "cover": [{"rank": 1, "label": "油价 / 成品油调价", "title": "机构预测 11 月 12 日 24 时成品油调价或下调，92 号汽油每升降约 0.3 元", "sem": {"value": "0.3", "unit": "元 / 升", "trend": "down", "stamp": "调价窗口 11.12 24:00", "board": "民生服务", "org": "机构预测", "src": "机构预测"}}, {"rank": 2, "label": "应季健康提示 / 流感", "title": "湖北疾控：已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "湖北疾控", "brief": "已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主。", "role": "提示流行毒株与趋势", "src": "湖北疾控"}}, {"rank": 3, "label": "700 号段 / 个人信息保护", "title": "工信部批复 10 家企业开展 700 号段号码保护服务试点", "sem": {"board": "公共安全与出行"}}, {"rank": 4, "label": "应季健康提示 / 流感", "title": "成都疾控、成都气象联合提示：流感综合指数 IV 级，处于活跃期", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "成都疾控 × 成都气象", "brief": "流感综合指数 IV 级，处于活跃期。", "role": "本地风险等级", "src": "成都疾控 / 成都气象"}}, {"rank": 5, "label": "外贸 / 中欧班列", "title": "光明网：中欧班列重箱率连续 50 个月保持 100%，「班列好物」进入消费者购物车", "sem": {"board": "产业经济"}}, {"rank": 6, "label": "重大司法 / 命案宣判", "title": "泸州「花坛藏尸案」一审宣判：一死刑、一死缓", "sem": {"board": "公共安全与出行"}}, {"rank": 7, "label": "应季健康提示 / 呼吸道传染病", "title": "中国疾控中心提示秋冬呼吸道传染病高发季四条防护要点", "sem": {"topic_id": "T1", "topic_name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "board": "健康防护", "org": "中国疾控中心", "brief": "发布秋冬呼吸道传染病高发季四条防护要点。", "role": "可执行的行动建议", "src": "中国疾控中心"}}, {"rank": 8, "label": "交通出行 / 天气", "title": "中央气象台每日天气提示：云南南部及华南降雨增多，华北黄淮大气扩散条件转差", "sem": {"board": "公共安全与出行"}}, {"rank": 9, "label": "两岸交流 / 消费", "title": "中新网：国台办指「双十一」消费热见证两岸生活方式相通", "sem": {"board": "民生服务"}}, {"rank": 10, "label": "新能源车 / 产业数据", "title": "中汽协：10 月新能源汽车新车销量占比达 64.3%，汽车产销双双超过 300 万辆", "sem": {"board": "产业经济"}}], "source_url": "https://docs.qq.com/sheet/DTGFjR0xXWnVZcWR6", "known_file_ids": ["LnowoKdDgopd", "DTG5KUGNqQVBSTVdt", "DTG5vd29LZERnb3Bk"], "script_hash_baseline": "44f23f3d73b9", "sheet_script": "处理后的数据", "sheet_cover": "排名最靠前的10条", "voice_endpoint": "https://libretts.is-an.org/api/tts", "note": "表格直达：无渠道 md / 无 SKILL / 无打分筛选 / 无 AI 编排 / 无密钥", "window_statement": "今日要闻为昨日 20:00 到今日 20:00 的资讯。", "news_window": {"start": "昨日 20:00", "end": "今日 20:00", "tz": "Asia/Shanghai"}, "voice_volume_default": 1.0, "issue_cfg": {"date": "2026-11-13", "weekday": "星期五", "date_cn": "2026年11月13日，星期五", "date_line": "2026-11-13 星期五", "issue_no": "第01期", "notes": ""}, "cover_header": {"title": "每日要闻速览", "show_title": true, "show_date": true, "show_issue": true}, "rebuilt_at": "2026-11-13 10:13:14", "trigger": {"mode": "workflow_dispatch", "configurable": false, "note": "无定时；内容更新由 Actions 手动 Run workflow 触发。"}, "subtitle_cfg": {"on": true, "burn_in": true, "soft_track": true, "font_size": 44, "color": "#FFFFFF", "outline_color": "#0d1b2a", "position": "bottom", "background": true, "font": "WenQuanYi Micro Hei", "note": "默认烧录硬字幕（Chrome/手机播放器可见）+ 保留 mov_text 软轨 + 独立 SRT；开关真能关。"}, "typewriter": {"on": true, "target": "subtitle", "ms_per_char": 55, "max_steps": 8}, "export_size": "portrait", "issue_mode": "auto", "cover_count": 10, "bgm_note": "配乐仅自定义上传；无内置曲库。", "semantic": {"mode": "L1", "enabled": true, "note": "字段全部来自表格可选列；未填列时不推断、不自动抽取，缺列不显示对应元素，版式按素材自动选择", "count": 10, "hero": {"index": 1, "rank": 1, "title": "机构预测 11 月 12 日 24 时成品油调价或下调，92 号汽油每升降约 0.3 元", "value": "0.3", "unit": "元 / 升", "arrow": "↓", "stamp": "调价窗口 11.12 24:00", "board": "民生服务", "org": "机构预测", "src": "机构预测", "brief": "", "summary": "11 月 11 日多家机构测算，11 月 12 日 24 时新一轮国内成品油零售限价调整窗口开启，本轮下调为大概率事件", "topic_id": ""}, "topics": [{"id": "T1", "name": "秋冬呼吸道传染病高发季", "badge": "3 家机构提示", "items": [{"index": 2, "rank": 2, "title": "湖北疾控：已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主", "org": "湖北疾控", "brief": "已进入秋冬流感流行季上升阶段，以甲型 H3N2 为主。", "role": "提示流行毒株与趋势", "src": "湖北疾控"}, {"index": 4, "rank": 4, "title": "成都疾控、成都气象联合提示：流感综合指数 IV 级，处于活跃期", "org": "成都疾控 × 成都气象", "brief": "流感综合指数 IV 级，处于活跃期。", "role": "本地风险等级", "src": "成都疾控 / 成都气象"}, {"index": 7, "rank": 7, "title": "中国疾控中心提示秋冬呼吸道传染病高发季四条防护要点", "org": "中国疾控中心", "brief": "发布秋冬呼吸道传染病高发季四条防护要点。", "role": "可执行的行动建议", "src": "中国疾控中心"}]}], "rest": [{"index": 3, "rank": 3, "title": "工信部批复 10 家企业开展 700 号段号码保护服务试点", "board": "公共安全与出行"}, {"index": 5, "rank": 5, "title": "光明网：中欧班列重箱率连续 50 个月保持 100%，「班列好物」进入消费者购物车", "board": "产业经济"}, {"index": 6, "rank": 6, "title": "泸州「花坛藏尸案」一审宣判：一死刑、一死缓", "board": "公共安全与出行"}, {"index": 8, "rank": 8, "title": "中央气象台每日天气提示：云南南部及华南降雨增多，华北黄淮大气扩散条件转差", "board": "公共安全与出行"}, {"index": 9, "rank": 9, "title": "中新网：国台办指「双十一」消费热见证两岸生活方式相通", "board": "民生服务"}, {"index": 10, "rank": 10, "title": "中汽协：10 月新能源汽车新车销量占比达 64.3%，汽车产销双双超过 300 万辆", "board": "产业经济"}], "boards": ["产业经济", "健康防护", "公共安全与出行", "民生服务"], "stats": [{"num": "10", "label": "条要闻"}, {"num": "04", "label": "个板块"}, {"num": "01", "label": "条头条"}], "topic_count": 3, "rest_count": 6, "columns": ["数值", "单位", "趋势", "时间角标", "板块", "专题ID", "专题名", "角标", "机构短名", "主句", "角色标签", "来源短名"]}}</script>
 <script>
 "use strict";
 function md5(s){const b=[];for(let i=0;i<s.length;i++){let c=s.charCodeAt(i);if(c<128)b.push(c);else if(c<2048)b.push(192|c>>6,128|c&63);else if(c<55296||c>=57344)b.push(224|c>>12,128|c>>6&63,128|c&63);else{c=65536+((c&1023)<<10)+(s.charCodeAt(++i)&1023);b.push(240|c>>18,128|c>>12&63,128|c>>6&63,128|c&63)}}
@@ -611,6 +637,7 @@ const DEF={
  card:{tpl:'frame_card',theme:'deep_blue',size:'portrait',index:1},
  voice:{mode:'libretts',voice:'zh-CN-YunyangNeural',rate:1,volume:P.voice_volume_default,upload:null},
  bgm:{file:null,url:null,background:null,sel:null,volume:.33},
+ mix:{master_db:0,duck:true,duck_db:-8,fade_in:.4,fade_out:.8},voiceConc:12,
  subtitle:JSON.parse(JSON.stringify(SUB0)),
  typewriter:JSON.parse(JSON.stringify(TW0)),
  export_size:P.export_size||'portrait',
@@ -625,7 +652,7 @@ try{
  const raw=localStorage.getItem(STATE_KEY);
  if(raw){const o=JSON.parse(raw);
   S=Object.assign({},DEF,o);
-  ['cover','card','voice','bgm','source','issue','script','subtitle','typewriter'].forEach(k=>{
+  ['cover','card','voice','bgm','mix','source','issue','script','subtitle','typewriter'].forEach(k=>{
    S[k]=Object.assign({},DEF[k],o[k]||{})});
   S.cover.wm=Object.assign({},DEF.cover.wm,(o.cover||{}).wm||{});
   if(o.__ver!==STATE_VER){S.cover.tpl='semantic';S.__ver=STATE_VER;}
@@ -660,8 +687,14 @@ function subtitleCfg(){return {on:!!S.subtitle.on,burn_in:!!S.subtitle.burn_in,s
  typewriter:!!S.typewriter.on}}
 function typewriterCfg(){return {on:!!S.typewriter.on,target:S.typewriter.target,
  ms_per_char:+S.typewriter.ms_per_char,max_steps:+S.typewriter.max_steps}}
+function mixCfg(){return {voice_volume:+S.voice.volume,bgm_volume:+S.bgm.volume,
+ master_gain_db:+S.mix.master_db,duck:!!S.mix.duck,duck_db:+S.mix.duck_db,
+ fade_in:+S.mix.fade_in,fade_out:+S.mix.fade_out,concurrency:+S.voiceConc}}
+function voiceCfg(){return Object.assign({},S.voice,{master_gain_db:+S.mix.master_db,concurrency:+S.voiceConc})}
+function bgmCfg(){return {file:S.bgm.background,volume:+S.bgm.volume,duck:!!S.mix.duck,
+ duck_db:+S.mix.duck_db,fade_in:+S.mix.fade_in,fade_out:+S.mix.fade_out}}
 function exportSize(){return S.export_size||S.cover.size||'portrait'}
-function previewHash(){return h12(fullText()+'|'+JSON.stringify({c:S.cover,d:S.card,v:S.voice,b:{n:S.bgm.background,v:S.bgm.volume},s:S.subtitle,sm:[S.source.sheetScript,S.source.sheetCover],w:{on:S.script.windowOn,t:S.script.windowText},i:S.issue}))}
+function previewHash(){return h12(fullText()+'|'+JSON.stringify({c:S.cover,d:S.card,v:S.voice,b:{n:S.bgm.background,v:S.bgm.volume},m:S.mix,vc:S.voiceConc,s:S.subtitle,sm:[S.source.sheetScript,S.source.sheetCover],w:{on:S.script.windowOn,t:S.script.windowText},i:S.issue}))}
 const COUNT_PRESETS={3:'3 条',5:'5 条',6:'6 条',8:'8 条',10:'10 条'};
 function coverMax(){return Math.max(1,Math.min(10,(P.cover||[]).length,(P.news||[]).length))}
 function coverCount(){const v=parseInt(S.cover.count,10);return Math.max(1,Math.min(coverMax(),isNaN(v)?10:v))}
@@ -905,9 +938,12 @@ function drawEqualCover(ctx,co,T,W,H,u,sem,pad,footerH,land,showT,showD,showI,ti
   ctx.strokeStyle=strongLine;ctx.lineWidth=1;ctx.beginPath();
   ctx.moveTo(x,y1);ctx.lineTo(x+colW,y1);ctx.stroke();
   const bx=x+34*u,by=y0+(cardH-numW)/2,strong=i<3;
-  ctx.fillStyle=strong?co.acc:co.chip;rr(ctx,bx,by,numW,numW,numW*.21);ctx.fill();
+  ctx.fillStyle=strong?co.acc:mixHex(co.bg,T.dark?'#ffffff':'#000000',.18);
+  rr(ctx,bx,by,numW,numW,numW*.21);ctx.fill();
+  ctx.strokeStyle=strong?co.acc:mixHex(co.bg,T.dark?'#ffffff':'#000000',.36);
+  ctx.lineWidth=Math.max(1,2*u);rr(ctx,bx,by,numW,numW,numW*.21);ctx.stroke();
   ctx.fillStyle=strong?'#ffffff':co.fg;
-  ctx.font='800 '+Math.round(30*u)+'px ui-monospace,monospace';
+  ctx.font='800 '+Math.round(32*u)+'px ui-monospace,monospace';
   ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(String(i+1).padStart(2,'0'),bx+numW/2,by+numW/2+.5);
   ctx.fillStyle=co.fg;ctx.textAlign='left';ctx.textBaseline='top';
@@ -950,7 +986,7 @@ function drawSemanticCover(){
   const hb=semHeader(ctx,co,pad,W-pad,62*u,88,u,showT,showD,showI,title,dateCn,issueNo);
   headBottom=sem.boards.length?semStats(ctx,co,pad,W-pad,hb,statH,sem.stats,u):hb;
  }else headBottom=40*u;
- const avail=H-headBottom-footerH,secPad=20*u;
+ const avail=H-headBottom-footerH,secPad=14*u;
  /* 头条卡高度按内容算：数值行 + 标题行 + 摘要行 + 来源行，不按固定权重撑满画面。 */
  const hero0=sem.hero,heroText=(hero0&&(hero0.brief||hero0.summary))||'';
  const hpx=pad+34*u,hpw=W-pad-30*u-hpx;
@@ -1013,25 +1049,31 @@ function drawSemanticCover(){
   });
   if(sem.rest.length){
    ry=secHead(ry,'其余要闻','0'+sem.rest.length+' 条','',rx0,rx1);
-   const rows=sem.rest.length,colw=rx1-rx0-52*u;
+   const rows=sem.rest.length,colw=rx1-rx0-52*u,numW=48*u,textW=colw-numW-24*u;
    const availRest=Math.max(100*u,H-footerH-ry-12*u);
-   const texts=sem.rest.map(it=>String(it.rank).padStart(2,'0')+'  '+it.title);
+   const texts=sem.rest.map(it=>it.title);
    const totalAt=sz=>{ctx.font='700 '+Math.round(sz)+'px '+SEMFONT;
-    return texts.reduce((a,t)=>a+wrapText(ctx,t,colw-12*u,99).length*sz*1.30+14*u,0);};
+    return texts.reduce((a,t)=>a+wrapText(ctx,t,textW,99).length*sz*1.30+8*u,0);};
    let fs=30*u;
    while(fs>20*u&&totalAt(fs)+24*u>availRest)fs-=1;
    const rh=Math.min(availRest,totalAt(fs)+24*u);
    semBox(ctx,co,rx0,ry,rx1,ry+rh,18*u);
    let yy=ry+12*u;
    texts.forEach((t,k)=>{
-    const x=rx0+26*u;
-    ctx.font='700 '+Math.round(fs)+'px '+SEMFONT;
-    const ls=wrapText(ctx,t,colw-12*u,99),h=ls.length*fs*1.30;
-    ctx.fillStyle=co.fg;ctx.textAlign='left';ctx.textBaseline='top';
-    ls.forEach((ln,i)=>ctx.fillText(ln,x,yy+i*fs*1.30));
-    if(k<rows-1)semRule(ctx,co,x,rx1-26*u,yy+h+4*u);
-    boxes.push([x,yy,rx1-26*u,yy+h+4*u]);
-    yy+=h+14*u;
+    const x=rx0+26*u,rk=sem.rest[k].rank,strong=rk<=3;
+    ctx.fillStyle=strong?co.acc:mixHex(co.bg,T.dark?'#ffffff':'#000000',.18);
+    rr(ctx,x,yy+2*u,numW,fs*1.12,6*u);ctx.fill();
+    ctx.fillStyle=strong?'#ffffff':co.fg;
+    ctx.font='800 '+Math.round(20*u)+'px ui-monospace,monospace';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(String(rk).padStart(2,'0'),x+numW/2,yy+2*u+fs*.56);
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.font='700 '+Math.round(fs)+'px '+SEMFONT;ctx.fillStyle=co.fg;
+    const ls=wrapText(ctx,t,textW,99),h=ls.length*fs*1.30;
+    ls.forEach((ln,i)=>ctx.fillText(ln,x+numW+14*u,yy+i*fs*1.30));
+    if(k<rows-1)semRule(ctx,co,x,rx1-26*u,yy+h+3*u);
+    boxes.push([x,yy,rx1-26*u,yy+h+3*u]);
+    yy+=h+8*u;
    });
   }
  }else{
@@ -1085,25 +1127,31 @@ function drawSemanticCover(){
   });
   if(sem.rest.length){
    cy=secHead(cy,'其余要闻','0'+sem.rest.length+' 条','',pad,W-pad);
-   const rows=sem.rest.length,colw=W-pad*2-68*u;
+   const rows=sem.rest.length,colw=W-pad*2-68*u,numW=52*u,textW=colw-numW-26*u;
    const availRest=Math.max(120*u,H-footerH-cy-10*u);
-   const texts=sem.rest.map(it=>String(it.rank).padStart(2,'0')+'  '+it.title);
+   const texts=sem.rest.map(it=>it.title);
    const totalAt=sz=>{ctx.font='700 '+Math.round(sz)+'px '+SEMFONT;
-    return texts.reduce((a,t)=>a+wrapText(ctx,t,colw-12*u,99).length*sz*1.30+16*u,0);};
+    return texts.reduce((a,t)=>a+wrapText(ctx,t,textW,99).length*sz*1.30+9*u,0);};
    let fs=32*u;
    while(fs>22*u&&totalAt(fs)+24*u>availRest)fs-=1;
    const rh=Math.min(availRest,totalAt(fs)+24*u);
    semBox(ctx,co,pad,cy,W-pad,cy+rh,20*u);
    let yy=cy+12*u;
    texts.forEach((t,k)=>{
-    const x=pad+34*u;
-    ctx.font='700 '+Math.round(fs)+'px '+SEMFONT;
-    const ls=wrapText(ctx,t,colw-12*u,99),h=ls.length*fs*1.30;
-    ctx.fillStyle=co.fg;ctx.textAlign='left';ctx.textBaseline='top';
-    ls.forEach((ln,i)=>ctx.fillText(ln,x,yy+i*fs*1.30));
-    if(k<rows-1)semRule(ctx,co,x,W-pad-34*u,yy+h+5*u);
-    boxes.push([x,yy,W-pad-34*u,yy+h+5*u]);
-    yy+=h+16*u;
+    const x=pad+34*u,rk=sem.rest[k].rank,strong=rk<=3;
+    ctx.fillStyle=strong?co.acc:mixHex(co.bg,T.dark?'#ffffff':'#000000',.18);
+    rr(ctx,x,yy+2*u,numW,fs*1.12,6*u);ctx.fill();
+    ctx.fillStyle=strong?'#ffffff':co.fg;
+    ctx.font='800 '+Math.round(21*u)+'px ui-monospace,monospace';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(String(rk).padStart(2,'0'),x+numW/2,yy+2*u+fs*.56);
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.font='700 '+Math.round(fs)+'px '+SEMFONT;ctx.fillStyle=co.fg;
+    const ls=wrapText(ctx,t,textW,99),h=ls.length*fs*1.30;
+    ls.forEach((ln,i)=>ctx.fillText(ln,x+numW+14*u,yy+i*fs*1.30));
+    if(k<rows-1)semRule(ctx,co,x,W-pad-34*u,yy+h+3*u);
+    boxes.push([x,yy,W-pad-34*u,yy+h+3*u]);
+    yy+=h+9*u;
    });
   }
  }
@@ -1198,24 +1246,49 @@ function drawCover(){
  window.__coverDraw={count:items.length,cols:cols,rows:rows,cell_h:Math.round(rowH),
   title_fs:Math.round(tsz),cut:blocks.some(b=>b.cut),max_h:Math.round(maxBH),
   centered:true,top_gap:Math.round(top-headBottom),bottom_gap:Math.round(H-bottomPad-(top+blockH)),
-  whitespace:Math.round((avail-blockH)/2)};
+  whitespace:Math.round((avail-blockH)/2),alternate_bands:true,tpl:S.cover.tpl,plain_num:(S.cover.tpl==='list')};
+ const tpl=S.cover.tpl,band=mixHex(T.bg,T.dark?'#ffffff':'#000000',.075);
+ const plainNum=(tpl==='list');
  for(let i=0;i<items.length;i++){
   const col=Math.floor(i/rows),row=i%rows;
   const x=pad+col*(colW+30*u),y0=top+row*rowH,bh=blocks[i].h,th=blocks[i].th;
   const cy=y0+(rowH-bh)/2,by=cy+(bh-badge)/2;
-  if(S.cover.tpl!=='list'){
+  /* 三套模板统一隔行底色 */
+  if(row%2===1){ctx.fillStyle=band;rr(ctx,x,y0+2*u,colW,rowH-4*u,10*u);ctx.fill();}
+  /* 结构差异：榜单卡片=逐行圆角卡；极简列表=顶部分隔线+纯文字序号；报头重点=首条头条块 */
+  if(tpl==='rank'){
+   ctx.strokeStyle=T.line;ctx.lineWidth=1;rr(ctx,x,y0+3*u,colW,rowH-6*u,10*u);ctx.stroke();
+   if(i<3){ctx.fillStyle=T.acc;rr(ctx,x,y0+3*u,6*u,rowH-6*u,3*u);ctx.fill();}
+  }else if(tpl==='list'){
    ctx.strokeStyle=T.line;ctx.lineWidth=1;ctx.beginPath();
-   ctx.moveTo(x,y0+rowH-1);ctx.lineTo(x+colW,y0+rowH-1);ctx.stroke();
+   ctx.moveTo(x,y0);ctx.lineTo(x+colW,y0);ctx.stroke();
+  }else{
+   if(i===0){
+    ctx.fillStyle=mixHex(T.bg,T.acc,.16);rr(ctx,x,y0+2*u,colW,rowH-4*u,10*u);ctx.fill();
+    ctx.fillStyle=T.acc;rr(ctx,x,y0+2*u,10*u,rowH-4*u,4*u);ctx.fill();
+    ctx.font='800 '+Math.round(20*u)+'px "WenQuanYi Micro Hei",sans-serif';
+    ctx.fillStyle=T.acc;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('头条',x+txOff,y0+6*u);
+   }else{
+    ctx.strokeStyle=T.line;ctx.lineWidth=1;ctx.beginPath();
+    ctx.moveTo(x,y0+rowH-1);ctx.lineTo(x+colW,y0+rowH-1);ctx.stroke();
+   }
   }
-  if(S.cover.tpl==='headline'&&i===0){ctx.fillStyle=T.acc;ctx.fillRect(x,y0-8*u,170*u,3*u);}
   const strong=i<3,bx=x+20*u;
-  if(strong){ctx.fillStyle=T.acc;rr(ctx,bx,by,badge,badge,badge*.21);ctx.fill();}
-  else{ctx.fillStyle=chipBg;rr(ctx,bx,by,badge,badge,badge*.21);ctx.fill();}
-  ctx.fillStyle=strong?'#fff':numSoft;
-  ctx.font='bold '+Math.round(30*k*u)+'px ui-monospace,monospace';
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText(String(i+1).padStart(2,'0'),bx+badge/2,by+badge/2+.5);
-  const tx=x+txOff;
+  if(plainNum){
+   ctx.fillStyle=strong?T.acc:T.txt;
+   ctx.font='800 '+Math.round(30*k*u)+'px ui-monospace,monospace';
+   ctx.textAlign='left';ctx.textBaseline='middle';
+   ctx.fillText(String(i+1).padStart(2,'0'),bx,cy+bh/2);
+  }else{
+   if(strong){ctx.fillStyle=T.acc;rr(ctx,bx,by,badge,badge,badge*.21);ctx.fill();}
+   else{ctx.fillStyle=chipBg;rr(ctx,bx,by,badge,badge,badge*.21);ctx.fill();}
+   ctx.fillStyle=strong?'#fff':numSoft;
+   ctx.font='bold '+Math.round(30*k*u)+'px ui-monospace,monospace';
+   ctx.textAlign='center';ctx.textBaseline='middle';
+   ctx.fillText(String(i+1).padStart(2,'0'),bx+badge/2,by+badge/2+.5);
+  }
+  const tx=plainNum?x+20*u+70*u:x+txOff;
   ctx.fillStyle=T.txt;ctx.textAlign='left';ctx.textBaseline='top';
   ctx.font='700 '+Math.round(tsz)+'px "WenQuanYi Micro Hei",sans-serif';
   const textTop=cy+(bh-th)/2;
@@ -1225,60 +1298,79 @@ function drawCover(){
 }
 function drawCard(canvas,idx,forPlayer,reveal){
  const c=P.news[idx]||P.news[0],T=THEMES[S.card.theme],sz=SIZES[S.card.size];
- const W=forPlayer?540:sz.w,H=forPlayer?960:sz.h;
+ const W=forPlayer?540:sz.w,H=forPlayer?960:sz.h,u=Math.min(W,H)/1080;
  canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');
  ctx.fillStyle=T.bg;ctx.fillRect(0,0,W,H);
  drawWatermark(ctx,W,H,T,S.cover);
- const pad=W*.075,land=!forPlayer&&S.card.size==='landscape';
- ctx.fillStyle=T.acc;ctx.fillRect(0,0,W,Math.max(4,W*.005));
- ctx.fillStyle=T.sub;ctx.font=Math.round(W*.018)+'px "WenQuanYi Micro Hei",sans-serif';ctx.textAlign='left';ctx.textBaseline='alphabetic';
+ const pad=72*u,land=!forPlayer&&S.card.size==='landscape';
+ ctx.fillStyle=T.acc;ctx.fillRect(0,0,W,Math.max(4,6*u));
+ ctx.fillStyle=T.sub;ctx.font=Math.round(19*u)+'px "WenQuanYi Micro Hei",sans-serif';ctx.textAlign='left';ctx.textBaseline='alphabetic';
  const hdr=(S.cover.showTitle?String(S.cover.title||''):'')+(S.cover.showTitle&&S.cover.showDate?' · ':'')+(S.cover.showDate?S.issue.date:'');
  if(hdr)ctx.fillText(hdr,pad,H*.072);
  const tpl=S.card.tpl;
  const boxY=H*.105,boxH=H*.80,boxX=pad,boxW=W-pad*2;
  if(tpl==='frame_card'){
-  ctx.fillStyle=T.card;rr(ctx,boxX,boxY,boxW,boxH,Math.min(14,W*.012));ctx.fill();
-  ctx.strokeStyle=T.line;ctx.lineWidth=1;rr(ctx,boxX,boxY,boxW,boxH,Math.min(14,W*.012));ctx.stroke();
+  ctx.fillStyle=T.card;rr(ctx,boxX,boxY,boxW,boxH,Math.min(14,12*u));ctx.fill();
+  ctx.strokeStyle=T.line;ctx.lineWidth=1;rr(ctx,boxX,boxY,boxW,boxH,Math.min(14,12*u));ctx.stroke();
  }else if(tpl==='frame_minimal'){
   ctx.strokeStyle=T.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(boxX,boxY);ctx.lineTo(boxX+boxW,boxY);ctx.stroke();
  }else{
-  ctx.fillStyle=T.acc;ctx.fillRect(boxX,boxY,Math.max(4,W*.005),boxH*.30);
+  ctx.fillStyle=T.acc;ctx.fillRect(boxX,boxY,Math.max(4,6*u),boxH*.30);
  }
  const ix=boxX+boxW*.045,iw=boxW*.91;
  const sy=boxY+boxH*.79;
- const tsz=Math.round(W*(tpl==='frame_headline'?.062:.048)),ssz=Math.round(W*.030);
+ const tsz=Math.round((tpl==='frame_headline'?70:(land?60:70))*u),ssz=Math.round((land?40:46)*u);
  const tf=fitBlock(ctx,c.title,iw,3,tsz,'800',1.30,boxH*.27);
  const sf=fitBlock(ctx,c.summary,iw,9,ssz,'400',1.50,boxH*.56);
  const rv=(typeof reveal==='number')?reveal:1;
  const tShow=rv<1?revealFit(ctx,tf,c.title,rv,iw,3):tf;
  const sShow=rv<1?revealFit(ctx,sf,c.summary,rv,iw,9):sf;
- const noH=W*.021*1.7,tH=tShow.lines.length*tShow.size*1.30,sH=sShow.lines.length*sShow.size*1.50;
+ const noH=22*u*1.7,tH=tShow.lines.length*tShow.size*1.30,sH=sShow.lines.length*sShow.size*1.50;
  const contentH=noH+tf.size*.5+tH+tf.size*.5+sH;
- const availTop=boxY+boxH*.035,availBot=sy-W*.05;
+ const availTop=boxY+boxH*.035,availBot=sy-50*u;
  let y=availTop+Math.max(0,(availBot-availTop-contentH)/2);
- ctx.fillStyle=T.sub;ctx.font=Math.round(W*.021)+'px "WenQuanYi Micro Hei",sans-serif';
- ctx.fillText('NO.'+String(idx+1).padStart(2,'0')+'  ·  '+(c.label||''),ix,y+W*.021);y+=noH;
+ ctx.fillStyle=T.sub;ctx.font=Math.round(21*u)+'px "WenQuanYi Micro Hei",sans-serif';
+ ctx.fillText('NO.'+String(idx+1).padStart(2,'0')+'  ·  '+(c.label||''),ix,y+21*u);y+=noH;
  ctx.fillStyle=T.txt;ctx.font='800 '+tShow.size+'px "WenQuanYi Micro Hei",sans-serif';
  tShow.lines.forEach(ln=>{ctx.fillText(ln,ix,y+tShow.size);y+=tShow.size*1.30});
- y+=tShow.size*.5;
+ y+=tShow.size*.95;
  ctx.fillStyle=T.sub;ctx.font=sShow.size+'px "WenQuanYi Micro Hei",sans-serif';
  sShow.lines.forEach(ln=>{ctx.fillText(ln,ix,y+sShow.size);y+=sShow.size*1.50});
- // 来源带
- ctx.strokeStyle=T.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ix,sy-W*.012);ctx.lineTo(ix+iw,sy-W*.012);ctx.stroke();
- ctx.fillStyle=T.acc;ctx.font='bold '+Math.round(W*.023)+'px "WenQuanYi Micro Hei",sans-serif';
- ctx.fillText('来源',ix,sy+W*.012);
- const usz=Math.round(W*.023);ctx.fillStyle=T.sub;ctx.font=usz+'px "WenQuanYi Micro Hei",sans-serif';
- let uy=sy+W*.048;
+ // 来源带：底色 + 自动缩字号 + 平台/完整地址都在画面内
+ const bandTop=sy-12*u,bandBot=boxY+boxH*.985,u0=Math.max(12,Math.round(14*u));
+ ctx.fillStyle=mixHex(T.bg,T.dark?'#ffffff':'#000000',.055);
+ rr(ctx,boxX,bandTop,boxW,bandBot-bandTop,10*u);ctx.fill();
+ ctx.strokeStyle=T.line;ctx.lineWidth=1;ctx.beginPath();
+ ctx.moveTo(ix,bandTop+14*u);ctx.lineTo(ix+iw,bandTop+W*.014);ctx.stroke();
+ const srcH=sz=>{
+  let h=sz*2.0;
+  ctx.font='bold '+Math.round(sz)+'px "WenQuanYi Micro Hei",sans-serif';
+  for(const s of c.sources){
+   h+=wrapText(ctx,'来源 · '+s.platform,iw,4).length*sz*1.38;
+   ctx.font=Math.round(sz)+'px "WenQuanYi Micro Hei",sans-serif';
+   h+=wrapText(ctx,String(s.url||''),iw-8,30).length*sz*1.38+sz*.5;
+   ctx.font='bold '+Math.round(sz)+'px "WenQuanYi Micro Hei",sans-serif';
+  }
+  return h;
+ };
+ let usz=Math.round(30*u);
+ const bandH=bandBot-(bandTop+45*u);
+ while(usz>u0&&srcH(usz)>bandH)usz-=1;
+ ctx.textAlign='left';ctx.textBaseline='alphabetic';
+ ctx.font='bold '+Math.round(usz)+'px "WenQuanYi Micro Hei",sans-serif';
+ ctx.fillStyle=T.acc;ctx.fillText('来源',ix,bandTop+45*u);
+ let uy=bandTop+45*u+usz*1.5;
  for(const s of c.sources){
-  ctx.fillStyle=T.txt;ctx.fillText(s.platform,ix,uy);uy+=usz*1.45;
-  ctx.fillStyle=T.sub;
-  // URL 按字符断行，保证完整地址可显示
-  const u=s.url;let ln='';
-  for(const ch of u){if(ctx.measureText(ln+ch).width>iw&&ln){ctx.fillText(ln,ix,uy);uy+=usz*1.4;ln=ch}else ln+=ch}
-  if(ln){ctx.fillText(ln,ix,uy);uy+=usz*1.4}
+  ctx.font='bold '+Math.round(usz)+'px "WenQuanYi Micro Hei",sans-serif';
+  const pl=wrapText(ctx,'来源 · '+s.platform,iw,4);
+  ctx.fillStyle=T.acc;pl.forEach(ln=>{ctx.fillText(ln,ix,uy);uy+=usz*1.38});
+  ctx.font=Math.round(usz)+'px "WenQuanYi Micro Hei",sans-serif';
+  const ul=wrapText(ctx,String(s.url||''),iw-8,30);
+  ctx.fillStyle=T.sub;ul.forEach(ln=>{ctx.fillText(ln,ix+8,uy);uy+=usz*1.38});
   uy+=usz*.5;
-  if(uy>boxY+boxH*.985)break;
+  if(uy>bandBot-usz)break;
  }
+ window.__cardDraw={w:W,h:H,u:u,tpl:tpl,src_fs:Math.round(usz),band_bot:Math.round(bandBot),last_y:Math.round(uy),overflow:uy>bandBot};
 }
 function gates(){
  const seg=segments(),items=P.news,cv=P.cover;
@@ -1446,6 +1538,7 @@ function render(){
  $('subCfgStat').textContent='字号 '+S.subtitle.font_size+'px · '+S.subtitle.position+' · 打字机 '+(S.typewriter.on?'开':'关');
  // 配乐：仅自定义上传，无内置曲库
  $('bgmVol').value=Math.round(S.bgm.volume*100);$('bgmVolV').textContent=S.bgm.volume.toFixed(2);
+ syncMixUI();
  $('bgmTag').textContent=S.bgm.background?('背景：'+S.bgm.background):'自定义上传 / 不配乐';
  $('bgmState').innerHTML='当前背景音乐：<b>'+esc(S.bgm.background||'不配乐（纯人声）')+'</b>'
   +(S.bgm.file?' · 已上传 <b>'+esc(S.bgm.file)+'</b>':'');
@@ -1469,6 +1562,28 @@ function renderStatus(){
  if($('lockTag'))$('lockTag').textContent=S.locked?(same?'已锁定 · 一致':'已锁定 · 已变更'):'未锁定';
  if($('lockHint')&&S.locked&&!same)$('lockHint').innerHTML='<b style="color:#ffab9c">⚠ 成品不是你确认的这版</b>：锁定后改动了配置或文稿，请重新「锁定并合成」。';
  $('foot').innerHTML='每日要闻工作台 · 本期 '+S.issue.date_line+' '+S.issue.issue_no+' · '+seg.length+' 句 = 开场 1 + 窗口说明 '+(S.script.windowOn?1:0)+' + 30 资讯卡 + 片尾 1 · 窗口 昨日20:00—今日20:00 · 预览 hash <span class="file">'+ph+'</span> · 页面只读 data.js 与 media/ 成品 · 无渠道 md / 无 SKILL / 无打分筛选 / 无 AI 编排 / 无密钥 · 配乐仅自定义上传';
+}
+function drawSubtitleCanvas(ctx,W,H,cfg,text,ratio){
+ if(!cfg.on||!text)return;
+ const scale=Math.min(W,H)/1080,fs=Math.max(15,Math.round(+cfg.font_size*scale*1.18));
+ const margin=Math.round(W*.045),maxW=W-margin*2;
+ const tw=cfg.typewriter&&(S.typewriter.target==='subtitle'||S.typewriter.target==='both');
+ const shown=tw?text.slice(0,Math.ceil(text.length*Math.max(0,Math.min(1,ratio)))):String(text);
+ ctx.save();ctx.font='700 '+fs+'px "WenQuanYi Micro Hei",sans-serif';
+ const lines=wrapText(ctx,shown,maxW,4),lh=fs*1.42;
+ if(!lines.length){ctx.restore();return;}
+ const bw=Math.min(maxW,Math.max.apply(null,lines.map(l=>ctx.measureText(l).width))+Math.round(fs*1.2));
+ const bh=lines.length*lh+Math.round(fs*.7),bx=(W-bw)/2;
+ let by=cfg.position==='top'?Math.round(H*.055):(cfg.position==='center'?Math.round((H-bh)/2):Math.round(H*.945-bh));
+ if(cfg.background){
+  ctx.fillStyle='rgba(4,11,18,.84)';rr(ctx,bx,by,bw,bh,fs*.35);ctx.fill();
+  ctx.strokeStyle=cfg.outline_color;ctx.lineWidth=Math.max(1,scale*2);rr(ctx,bx,by,bw,bh,fs*.35);ctx.stroke();
+ }
+ ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 '+fs+'px "WenQuanYi Micro Hei",sans-serif';
+ lines.forEach((l,i)=>{const y=by+fs*.35+lh*(i+.5);
+  ctx.lineWidth=Math.max(2,fs*.14);ctx.strokeStyle=cfg.outline_color;ctx.strokeText(l,W/2,y);
+  ctx.fillStyle=cfg.color;ctx.fillText(l,W/2,y)});
+ ctx.restore();
 }
 function drawPlayer(){
  const seg=segments(),ns=newsStart(),i=Math.min(S.playIdx,seg.length-1);
@@ -1528,18 +1643,27 @@ function drawPlayer(){
   ctx.fillStyle=T.txt;ctx.font='bold 25px "WenQuanYi Micro Hei",sans-serif';
   ctx.fillText('昨日 20:00 — 今日 20:00',62,boxY+82);
   ctx.fillStyle=T.sub;ctx.font='19px "WenQuanYi Micro Hei",sans-serif';
-  ctx.fillText('本期 '+P.news.length+' 条 · 来源 '+P.news.reduce((a,n)=>a+n.sources.length,0)+' 个 · 以官方发布为准',62,boxY+boxH-24);
+  ctx.fillText('本期 '+P.news.length+' 条 · 来源 '+P.news.reduce((a,n)=>a+n.sources.length,0)+' 个',62,boxY+boxH-24);
   ctx.strokeStyle=T.line;ctx.beginPath();ctx.moveTo(40,H-110);ctx.lineTo(W-40,H-110);ctx.stroke();
-  ctx.fillStyle=T.txt;ctx.font='22px "WenQuanYi Micro Hei",sans-serif';
-  ctx.fillText('内容依据公开信息整理 · 以官方发布为准',40,H-68);
-  ctx.fillStyle=T.sub;ctx.font='19px "WenQuanYi Micro Hei",sans-serif';
-  ctx.fillText('仅供参考 · 不构成投资、医疗或法律建议',40,H-36);
+  ctx.fillStyle=T.sub;ctx.font='22px "WenQuanYi Micro Hei",sans-serif';
+  ctx.fillText('资讯窗口 昨日 20:00 — 今日 20:00 · 共 '+P.news.length+' 条',40,H-68);
  }else drawCard($('plCanvas'),cardIdx,true,twFrm?rv:1);
- $('timeline').innerHTML=durs.map((d,k)=>'<div class="tk '+(k<i?'done':k===i?'cur':'')+'" data-k="'+k+'" title="'+fmtT(d)+'" style="flex:'+Math.max(0.4,d)+' 1 0">'+(k===i?'<i style="width:'+((d>0?S.playPos/d:0)*100).toFixed(1)+'%"></i>':'')+'</div>').join('');
- $('timeline').querySelectorAll('.tk').forEach(t=>t.onclick=()=>{S.playIdx=+t.dataset.k;S.playPos=0;
-  if(MERGED&&mergedAudio){try{mergedAudio.currentTime=MERGED.offsets[S.playIdx]||0}catch(e){}
-   if(S.playing)mergedAudio.play().catch(()=>{});}
-  drawPlayer();save()});
+ drawSubtitleCanvas(ctx,540,960,Object.assign({},S.subtitle,{typewriter:twSub}),full,ratio);
+ /* 骨架只建一次，之后逐帧只改类名与宽度，避免每帧重建 DOM 把拖动事件冲掉 */
+ const tl=$('timeline');
+ if(tl.querySelectorAll('.tk').length!==durs.length){
+  tl.innerHTML=durs.map((d,k)=>'<div class="tk" data-k="'+k+'" title="'+fmtT(d)+'" style="flex:'+Math.max(0.4,d)+' 1 0"><i></i></div>').join('')+'<div class="head" id="tlHead"></div>';
+ }
+ const tks=tl.querySelectorAll('.tk');
+ tks.forEach((t,k)=>{
+  t.className='tk '+(k<i?'done':k===i?'cur':'');
+  t.title=fmtT(durs[k]);t.style.flex=Math.max(0.4,durs[k])+' 1 0';
+  const fi=t.querySelector('i');
+  if(fi)fi.style.width=(k===i?((durs[k]>0?S.playPos/durs[k]:0)*100).toFixed(1)+'%':(k<i?'100%':'0%'));
+ });
+ const pos=total>0?((elapsed/total)*100).toFixed(3)+'%':'0%';
+ if($('tlHead'))$('tlHead').style.left=pos;
+ if($('pbarHead'))$('pbarHead').style.left=pos;
  $('pbarFill').style.width=total>0?((elapsed/total)*100).toFixed(2)+'%':'0%';
  $('plState').textContent=S.playing?'播放中':(S.playIdx>0||S.playPos>0?'已暂停':'已停止');
  $('btnPlay').classList.toggle('playing',S.playing);
@@ -1718,7 +1842,20 @@ $('vcFile').onchange=()=>{const f=$('vcFile').files[0];S.voice.upload=f?f.name:n
  $('vcUploadMsg').innerHTML=f?'<div class="okbar">已登记真人录音 <span class="file">'+esc(f.name)+'</span>：上传即整段替换音轨，默认关闭在线 TTS。</div>':'';
  renderStatus();save()};
 const VOICE_CACHE=new Map();
-let voiceAbort=null,voiceAC=null;
+let voiceAbort=null,voiceAC=null,LAST_SIG=[],idb=null;
+function voiceSig(t){return S.voice.voice+'|'+S.voice.rate+'|'+t}
+function openVoiceCache(){return new Promise(res=>{try{
+ const q=indexedDB.open('daily_news_voice',1);
+ q.onupgradeneeded=()=>{try{q.result.createObjectStore('blobs')}catch(e){}};
+ q.onsuccess=()=>{idb=q.result;res(idb)};q.onerror=()=>res(null);
+}catch(e){res(null)}})}
+async function cacheGet(key){
+ if(VOICE_CACHE.has(key))return VOICE_CACHE.get(key);
+ if(!idb)await openVoiceCache();if(!idb)return null;
+ return new Promise(res=>{try{const tx=idb.transaction('blobs','readonly'),rq=tx.objectStore('blobs').get(key);
+  rq.onsuccess=()=>{const b=rq.result;if(b)VOICE_CACHE.set(key,b);res(b||null)};rq.onerror=()=>res(null)}catch(e){res(null)}})}
+function cachePut(key,b){VOICE_CACHE.set(key,b);
+ if(!idb)return;try{const tx=idb.transaction('blobs','readwrite');tx.objectStore('blobs').put(b,key)}catch(e){}}
 /* 逐句合成结果写进同一条人声轨：预览播放、时间轴、导出音轨、浏览器录制共用这一份缓冲。 */
 const VOICE_TRACK=[];
 let MERGED=null,mergedAudio=null,bgmAud=null;
@@ -1759,9 +1896,10 @@ function ensureMerged(){
  if(!mergedAudio){mergedAudio=new Audio(MERGED.url);mergedAudio.preload='auto'}
  return mergedAudio;
 }
+function duckFactor(){return (S.mix.duck&&S.bgm.background)?Math.pow(10,+S.mix.duck_db/20):1}
 function setAudioVolume(){
  if(mergedAudio)mergedAudio.volume=Math.max(0,Math.min(1,S.voice.volume));
- if(bgmAud)bgmAud.volume=Math.max(0,Math.min(1,S.bgm.volume));
+ if(bgmAud)bgmAud.volume=Math.max(0,Math.min(1,S.bgm.volume*(S.playing?duckFactor():1)));
 }
 function playBgm(){
  if(!S.bgm.background){if(bgmAud)bgmAud.pause();return}
@@ -1770,18 +1908,19 @@ function playBgm(){
  if(!src)return;
  if(!bgmAud)bgmAud=new Audio();
  if(bgmAud.src!==src)bgmAud.src=src;
- bgmAud.loop=true;bgmAud.volume=Math.max(0,Math.min(1,S.bgm.volume));
+ bgmAud.loop=true;bgmAud.volume=Math.max(0,Math.min(1,S.bgm.volume*duckFactor()));
  bgmAud.currentTime=0;bgmAud.play().catch(()=>{});
 }
 function stopAudio(){
  if(mergedAudio)mergedAudio.pause();
  if(bgmAud)bgmAud.pause();
+ if(bgmAud)bgmAud.volume=Math.max(0,Math.min(1,S.bgm.volume));
 }
 function resetVoiceTrack(){
  VOICE_TRACK.length=0;
  if(mergedAudio){mergedAudio.pause();mergedAudio=null}
  if(MERGED){try{URL.revokeObjectURL(MERGED.url)}catch(e){}MERGED=null}
- S.voiceDurs=null;S.timeline=null;
+ S.voiceDurs=null;S.timeline=null;LAST_SIG=[];
 }
 async function ttsFetch(text,signal){
  const ep=P.voice_endpoint;
@@ -1819,38 +1958,50 @@ $('btnVoiceDemo').onclick=async()=>{
   try{if(window.speechSynthesis){const u=new SpeechSynthesisUtterance(segments()[0].slice(0,40));u.lang='zh-CN';u.rate=S.voice.rate;u.volume=Math.max(0,Math.min(1,S.voice.volume));speechSynthesis.cancel();speechSynthesis.speak(u)}}catch(_){}
  }
 };
-const VOICE_CONCURRENCY=6;
+const VOICE_CONCURRENCY=12;
 $('btnVoiceCancel').onclick=()=>{if(voiceAbort)voiceAbort.abort()};
 $('btnVoiceBuild').onclick=async()=>{
  const seg=segments();$('btnVoiceBuild').disabled=true;$('btnVoiceCancel').disabled=false;
- stopPlay();resetVoiceTrack();
+ stopPlay();
  voiceAbort=new AbortController();const signal=voiceAbort.signal;
- const durs=new Array(seg.length).fill(0);let done=0,cached=0,failed=null;
- $('vcBuildState').textContent='正在逐句合成 0 / '+seg.length+'（6 路并发）…';
+ const t0=Date.now(),conc=Math.max(1,Math.min(16,parseInt(S.voiceConc||12,10)));
+ const keys=seg.map(voiceSig);
+ /* 增量：只保留文本与音色都未改动的句子，改一句只重合成一句 */
+ const keep=seg.map((t,k)=>(LAST_SIG[k]===keys[k]&&VOICE_TRACK[k])?VOICE_TRACK[k]:null);
+ VOICE_TRACK.length=0;seg.forEach((t,k)=>{VOICE_TRACK[k]=keep[k]||null});
+ if(MERGED){try{URL.revokeObjectURL(MERGED.url)}catch(e){}MERGED=null}
+ if(mergedAudio){mergedAudio.pause();mergedAudio=null}
+ let reused=keep.filter(Boolean).length,cached=0,done=0,failed=null;
+ $('vcBuildState').textContent='增量复用 '+reused+' / '+seg.length+' 句 · 并发 '+conc+' 路…';
  try{
-  const jobs=seg.map((t,k)=>async()=>{
-   if(signal.aborted)return;
-   const key=S.voice.voice+'|'+S.voice.rate+'|'+t;
-   const hit=VOICE_CACHE.has(key);
-   const b=await ttsCached(t,signal);
-   durs[k]=await voiceDuration(b);
-   VOICE_TRACK[k]={blob:b,url:URL.createObjectURL(b),dur:durs[k]};
-   done++;if(hit)cached++;
-   $('vcBuildState').textContent='正在逐句合成 '+done+' / '+seg.length+'（并发 6 · 缓存命中 '+cached+'） · 累计 '+fmtT(durs.reduce((a,x)=>a+(x||0),0));
-  });
+  if(!idb)await openVoiceCache();
+  const missing=seg.map((t,k)=>k).filter(k=>!VOICE_TRACK[k]);
+  /* 先查持久化缓存，命中即零网络 */
+  for(const k of missing){
+   if(signal.aborted)throw new Error('用户取消');
+   const b=await cacheGet(keys[k]);
+   if(b){VOICE_TRACK[k]={blob:b,url:URL.createObjectURL(b),dur:await voiceDuration(b)};cached++;reused++}
+  }
+  const pending=seg.map((t,k)=>k).filter(k=>!VOICE_TRACK[k]);
   let cursor=0;
-  const worker=async()=>{while(cursor<jobs.length&&!signal.aborted){const j=jobs[cursor++];await j()}};
-  await Promise.all(Array.from({length:Math.min(VOICE_CONCURRENCY,jobs.length)},worker));
+  const worker=async()=>{while(cursor<pending.length&&!signal.aborted){
+   const k=pending[cursor++],b=await ttsFetch(seg[k],signal);
+   cachePut(keys[k],b);
+   VOICE_TRACK[k]={blob:b,url:URL.createObjectURL(b),dur:await voiceDuration(b)};done++;
+   $('vcBuildState').textContent='正在合成 '+done+' / '+pending.length+'（并发 '+conc+' · 复用 '+reused+' 句） · 用时 '+((Date.now()-t0)/1000).toFixed(1)+'s';
+  }};
+  await Promise.all(Array.from({length:Math.min(conc,pending.length)},worker));
   if(signal.aborted)throw new Error('用户取消');
   if(!VOICE_TRACK.every(Boolean))throw new Error('存在未合成的句子，音轨不完整');
-  S.voiceDurs=durs;S.playIdx=0;S.playPos=0;save();drawPlayer();
+  LAST_SIG=keys;S.voiceDurs=VOICE_TRACK.map(t=>t.dur);S.playIdx=0;S.playPos=0;
+  save();drawPlayer();
   const m=await buildMergedTrack();
   $('vcBuildState').innerHTML='<div class="okbar"><b>逐句合成完成</b>：'+seg.length+' 句 / 总时长 '+fmtT(m.dur)+
-   ' · 缓存复用 '+cached+' 句。人声轨已就绪：播放、时间轴、导出音轨、浏览器录制共用同一份音频缓冲；视频帧时长按每句朗读时长驱动。</div>';
+   ' · 复用 '+reused+' 句（缓存命中 '+cached+'） / 新合成 '+done+' 句 · 并发 '+conc+' 路 · 用时 '+((Date.now()-t0)/1000).toFixed(1)+'s。人声轨已就绪，预览 / 时间轴 / 导出共用同一份缓冲。</div>';
  }catch(e){
-  failed=e;
-  $('vcBuildState').innerHTML='<div class="errbar"><b>逐句合成中断</b>（已完成 '+done+' 句）：'+esc(e.message)+
-   '。已保留估算画面预览，不把估算伪装成真实音轨。</div>';
+  failed=e;LAST_SIG=[];
+  $('vcBuildState').innerHTML='<div class="errbar"><b>逐句合成中断</b>（已就绪 '+reused+' 句）：'+esc(e.message)+
+   '。不把未完成的音轨伪装成真实音轨。</div>';
  }finally{
   $('btnVoiceBuild').disabled=false;$('btnVoiceCancel').disabled=true;voiceAbort=null;
   if(!failed)gates();save();
@@ -1924,6 +2075,34 @@ function bindSub(){
  $('subSize').oninput=sync;
 }
 bindSub();
+function mixStateText(){const e=$('mixState');if(e)e.textContent='人声 '+(+S.voice.volume).toFixed(2)+' · 配乐 '+(+S.bgm.volume).toFixed(2)+' · 总增益 '+(+S.mix.master_db).toFixed(1)+' dB · 人声优先'+(S.mix.duck?'开':'关')+' · 淡入 '+(+S.mix.fade_in).toFixed(1)+'s / 淡出 '+(+S.mix.fade_out).toFixed(1)+'s'}
+function syncMixUI(){
+ if(!$('mixVoice'))return;
+ $('mixVoice').value=Math.round(S.voice.volume*100);$('mixVoiceV').textContent=(+S.voice.volume).toFixed(2);
+ $('mixBgm').value=Math.round(S.bgm.volume*100);$('mixBgmV').textContent=(+S.bgm.volume).toFixed(2);
+ $('mixMaster').value=S.mix.master_db;$('mixMasterV').textContent=(+S.mix.master_db).toFixed(1)+' dB';
+ $('mixDuck').checked=!!S.mix.duck;$('mixDuckDb').value=String(S.mix.duck_db);
+ $('mixFadeIn').value=Math.round(S.mix.fade_in*10);$('mixFadeInV').textContent=(+S.mix.fade_in).toFixed(1)+' s';
+ $('mixFadeOut').value=Math.round(S.mix.fade_out*10);$('mixFadeOutV').textContent=(+S.mix.fade_out).toFixed(1)+' s';
+ mixStateText();
+}
+function bindMix(){
+ const V=$('mixVoice'),B=$('mixBgm');
+ if(V)V.oninput=()=>{S.voice.volume=+V.value/100;$('mixVoiceV').textContent=S.voice.volume.toFixed(2);
+  if($('vcVol')){$('vcVol').value=V.value;$('vcVolV').textContent=S.voice.volume.toFixed(2)}
+  setAudioVolume();mixStateText();save();renderStatus()};
+ if(B)B.oninput=()=>{S.bgm.volume=+B.value/100;$('mixBgmV').textContent=S.bgm.volume.toFixed(2);
+  if($('bgmVol')){$('bgmVol').value=B.value;$('bgmVolV').textContent=S.bgm.volume.toFixed(2)}
+  if($('bgmAudio').src)$('bgmAudio').volume=S.bgm.volume;setAudioVolume();mixStateText();save();renderStatus()};
+ const M=$('mixMaster');if(M)M.oninput=()=>{S.mix.master_db=+M.value;$('mixMasterV').textContent=S.mix.master_db.toFixed(1)+' dB';mixStateText();save();renderStatus()};
+ const D=$('mixDuck');if(D)D.onchange=()=>{S.mix.duck=D.checked;setAudioVolume();mixStateText();save();renderStatus()};
+ const DD=$('mixDuckDb');if(DD)DD.onchange=()=>{S.mix.duck_db=+DD.value;setAudioVolume();mixStateText();save();renderStatus()};
+ const FI=$('mixFadeIn');if(FI)FI.oninput=()=>{S.mix.fade_in=+FI.value/10;$('mixFadeInV').textContent=S.mix.fade_in.toFixed(1)+' s';mixStateText();save()};
+ const FO=$('mixFadeOut');if(FO)FO.oninput=()=>{S.mix.fade_out=+FO.value/10;$('mixFadeOutV').textContent=S.mix.fade_out.toFixed(1)+' s';mixStateText();save()};
+ const C=$('vcConc');if(C){C.value=String(S.voiceConc);C.onchange=()=>{S.voiceConc=+C.value;save();renderStatus()}};
+ syncMixUI();
+}
+bindMix();
 $('btnExportSrtCfg').onclick=()=>download('字幕轨配置.json',JSON.stringify(subtitleCfg(),null,2),'application/json');
 $('pvTabs').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{S.pv=c.dataset.v;save();render()});
 let raf=null,lastTs=0;
@@ -1986,16 +2165,32 @@ $('btnFull').onclick=async()=>{
  try{if(!document.fullscreenElement){await (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen).call(el)}
   else await document.exitFullscreen()}catch(e){$('plMode').textContent='全屏失败：'+e.message}
 };
-$('pbar').onclick=e=>{
- const box=$('pbar').getBoundingClientRect(),r=Math.max(0,Math.min(1,(e.clientX-box.left)/box.width));
- const d=segDurs(segments()),target=r*d.reduce((a,b)=>a+b,0);
+function seekToRatio(r){
+ const d=segDurs(segments()),total=d.reduce((a,b)=>a+b,0),target=Math.max(0,Math.min(1,r))*total;
  let acc=0,idx=0,pos=0;
  for(let k=0;k<d.length;k++){if(acc+d[k]>target){idx=k;pos=target-acc;break}acc+=d[k];idx=k;pos=d[k]}
  S.playIdx=idx;S.playPos=pos;
  if(MERGED&&mergedAudio){try{mergedAudio.currentTime=(MERGED.offsets[idx]||0)+pos}catch(e){}
   if(S.playing)mergedAudio.play().catch(()=>{});}
  drawPlayer();save();
-};
+}
+function showSeekTip(e,r){
+ const t=$('seekTip');if(!t)return;
+ t.style.display='block';t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-28)+'px';
+ t.textContent=fmtT(r*totalDur(),1)+' / '+fmtT(totalDur());
+}
+function hideSeekTip(){const t=$('seekTip');if(t)t.style.display='none'}
+function bindSeek(el){
+ if(!el)return;
+ let dragging=false;
+ const ratio=e=>{const b=el.getBoundingClientRect();return Math.max(0,Math.min(1,(e.clientX-b.left)/b.width))};
+ el.addEventListener('pointerdown',e=>{dragging=true;try{el.setPointerCapture(e.pointerId)}catch(_){}
+  const r=ratio(e);seekToRatio(r);showSeekTip(e,r);e.preventDefault()});
+ el.addEventListener('pointermove',e=>{if(!dragging)return;const r=ratio(e);seekToRatio(r);showSeekTip(e,r)});
+ el.addEventListener('pointerup',e=>{dragging=false;hideSeekTip();e.preventDefault()});
+ el.addEventListener('pointercancel',()=>{dragging=false;hideSeekTip()});
+}
+bindSeek($('pbar'));bindSeek($('timeline'));
 ['sec-cover','sec-card'].forEach((id,k)=>{
  const el=$(id);if(!el)return;
  el.addEventListener('pointerdown',e=>{
@@ -2058,9 +2253,9 @@ $('btnRecordWebM').onclick=async()=>{
  }catch(e){st.innerHTML='<div class="errbar">录制失败：'+esc(e.message)+'。请先「逐句合成到人声轨」，并确认浏览器支持 MediaRecorder。</div>'}
 };
 $('btnLock').onclick=()=>{S.locked=previewHash();$('lockHint').textContent='已锁定 manifest hash '+S.locked+'；此后改动会提示不一致。';save();renderStatus()};
-function manifest(){const seg=segments(),ns=newsStart();return{version:'1.0',source_doc:'今日要闻_'+S.issue.date+'.xlsx',source_url:P.source_url,sheet_script:S.source.sheetScript,sheet_cover:S.source.sheetCover,news_window:windowCfg(),issue:issueCfg(),trigger:triggerCfg(),script_hash:scriptHash(),preview_hash:previewHash(),locked_hash:S.locked,cover_count:coverCount(),export_size:exportSize(),script_parts:{opening:S.script.opening,window_note:S.script.windowText,spoken:S.script.windowOn,body_segments:bodyItems().length,closing:S.script.closing},segments:seg.map((t,i)=>({idx:i,type:i===0?'open':(S.script.windowOn&&i===1?'window':(i===seg.length-1?'close':'news')),text:t,card_id:(i>=ns&&i<ns+P.news.length)?(i-ns+1):null,srt:true})),cards:P.news.map((n,i)=>({rank:i+1,title:n.title,summary:n.summary,sources:n.sources})),cover:coverItems().map(c=>({rank:c.rank,label:c.label,title:c.title,sem:c.sem||{}})),semantic:buildSemantic(),config:{issue:issueCfg(),cover:S.cover,card:S.card,voice:S.voice,bgm:{file:S.bgm.background,volume:S.bgm.volume,builtin_key:S.bgm.sel,library_count:BGM_LIB.length},subtitle:subtitleCfg(),typewriter:typewriterCfg(),export_size:exportSize()},counts:{segments:seg.length,news_cards:P.news.length,cover_items:coverCount(),subtitles:seg.length,sources:P.news.reduce((a,n)=>a+n.sources.length,0),window_note:S.script.windowOn?1:0},note:'预览零文件产出；锁定后由 Actions 按本 manifest 出片，成品 hash 与预览 hash 不一致须明确提示。'}}
+function manifest(){const seg=segments(),ns=newsStart();return{version:'1.0',source_doc:'今日要闻_'+S.issue.date+'.xlsx',source_url:P.source_url,sheet_script:S.source.sheetScript,sheet_cover:S.source.sheetCover,news_window:windowCfg(),issue:issueCfg(),trigger:triggerCfg(),script_hash:scriptHash(),preview_hash:previewHash(),locked_hash:S.locked,cover_count:coverCount(),export_size:exportSize(),script_parts:{opening:S.script.opening,window_note:S.script.windowText,spoken:S.script.windowOn,body_segments:bodyItems().length,closing:S.script.closing},segments:seg.map((t,i)=>({idx:i,type:i===0?'open':(S.script.windowOn&&i===1?'window':(i===seg.length-1?'close':'news')),text:t,card_id:(i>=ns&&i<ns+P.news.length)?(i-ns+1):null,srt:true})),cards:P.news.map((n,i)=>({rank:i+1,title:n.title,summary:n.summary,sources:n.sources})),cover:coverItems().map(c=>({rank:c.rank,label:c.label,title:c.title,sem:c.sem||{}})),semantic:buildSemantic(),config:{issue:issueCfg(),cover:S.cover,card:S.card,voice:voiceCfg(),bgm:bgmCfg(),mix:mixCfg(),subtitle:subtitleCfg(),typewriter:typewriterCfg(),export_size:exportSize()},counts:{segments:seg.length,news_cards:P.news.length,cover_items:coverCount(),subtitles:seg.length,sources:P.news.reduce((a,n)=>a+n.sources.length,0),window_note:S.script.windowOn?1:0},note:'预览零文件产出；锁定后由 Actions 按本 manifest 出片，成品 hash 与预览 hash 不一致须明确提示。'}}
 $('btnExportManifest').onclick=()=>download('render_manifest.json',JSON.stringify(manifest(),null,2),'application/json');
-function task(name,target){return{version:'1.0',task:name,target:target,manifest_hash:S.locked||previewHash(),script_hash:scriptHash(),source_url:P.source_url,news_window:windowCfg(),issue:issueCfg(),trigger:triggerCfg(),export_size:exportSize(),cover_count:coverCount(),voice:{mode:S.voice.mode,voice:S.voice.voice,rate:S.voice.rate,volume:S.voice.volume,upload:S.voice.upload,endpoint:P.voice_endpoint,volume_filter:'ffmpeg volume='+S.voice.volume.toFixed(2)},bgm:{file:S.bgm.background,volume:S.bgm.volume,builtin_key:S.bgm.sel,library_count:BGM_LIB.length},subtitle:subtitleCfg(),typewriter:typewriterCfg(),cover:S.cover,card:S.card,note:'原型不产生真实媒体文件：这是合成任务清单，首次 Actions 按 render_manifest.json 出片后才生成目标文件。'}}
+function task(name,target){return{version:'1.0',task:name,target:target,manifest_hash:S.locked||previewHash(),script_hash:scriptHash(),source_url:P.source_url,news_window:windowCfg(),issue:issueCfg(),trigger:triggerCfg(),export_size:exportSize(),cover_count:coverCount(),voice:{mode:S.voice.mode,voice:S.voice.voice,rate:S.voice.rate,volume:S.voice.volume,upload:S.voice.upload,endpoint:P.voice_endpoint,volume_filter:'ffmpeg volume='+S.voice.volume.toFixed(2)},bgm:bgmCfg(),mix:mixCfg(),voice:voiceCfg(),subtitle:subtitleCfg(),typewriter:typewriterCfg(),cover:S.cover,card:S.card,note:'原型不产生真实媒体文件：这是合成任务清单，首次 Actions 按 render_manifest.json 出片后才生成目标文件。'}}
 function videoTarget(){return exportSize()==='landscape'?'今日要闻速览_横版16比9.mp4':'今日要闻速览_竖版9比16.mp4'}
 [['btnExpMp3','导出MP3任务.json','今日要闻速览_播报.mp3'],
  ['btnExpSrt','导出SRT任务.json','今日要闻速览_字幕.srt'],
@@ -2130,7 +2325,7 @@ function sheetsToCover(rows){const ti=_hidx(rows,'标题'),li=_hidx(rows,'分类
 
 render();
 window.__daily={state:S,api:{render,gates,scriptHash,previewHash,fullText,segments,newsStart,manifest,scheduleCfg,windowCfg,cronUtc,cronValid,issueCfg,openingDate,openingWeekday,openingTemplate,dateCn,dateLine,weekdayOf,drawCover,drawCard,setCard,download},audioState:()=>({sentences:VOICE_TRACK.length,merged:!!MERGED,dur:MERGED?+MERGED.dur.toFixed(3):0,offsets:MERGED?MERGED.offsets.length:0,audio:!!mergedAudio,playing:!!(mergedAudio&&!mergedAudio.paused),time:mergedAudio?+mergedAudio.currentTime.toFixed(3):0,volume:mergedAudio?mergedAudio.volume:null}),payload:P,BGM_LIB:BGM_LIB,
- get(){return S},set(o){Object.assign(S,o);render()},normIssue,HEAD_DATE_GAP,buildSemantic,drawSemanticCover,drawEqualCover,SEM_COLS,subtitleCfg,typewriterCfg,exportSize,autoIssue,autoNotes,shanghaiToday,startPlay,stopPlay,replayPlay,renderBodyEditors,bodyItems};
+ get(){return S},set(o){Object.assign(S,o);render()},mixCfg,voiceCfg,bgmCfg,seekToRatio,drawSubtitleCanvas,cacheGet,VOICE_CACHE,normIssue,HEAD_DATE_GAP,buildSemantic,drawSemanticCover,drawEqualCover,SEM_COLS,subtitleCfg,typewriterCfg,exportSize,autoIssue,autoNotes,shanghaiToday,startPlay,stopPlay,replayPlay,renderBodyEditors,bodyItems};
 </script>
 <script>
 /* 活数据标记与成品下载 */

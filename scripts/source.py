@@ -474,9 +474,13 @@ def build_outputs(root, p, cfg):
                          lambda _m: _dcn, opening, count=1)
     window = p['window_statement']
     window_on = bool(cfg.get('window_on', True))
-    closing = cfg.get('closing') or p['close']
-    # 服务端兜底：旧文案里那句不再出现
-    closing = closing.replace('部分为预测或时点数据，', '')
+    closing = cfg.get('closing') or p['close'] or '以上是今日要闻速览，感谢收听，下期见。'
+    # 免责声明只放页面，不进口播/字幕/视频帧；旧配置里的免责句一律剥离
+    for junk in ('部分为预测或时点数据，',
+                 '内容依据公开信息整理，具体以官方发布为准。',
+                 '内容依据公开信息整理，以官方发布为准。',
+                 '仅供参考，不构成投资、医疗或法律建议。'):
+        closing = closing.replace(junk, '')
     body = '\n\n'.join(n['title'] + '。' + n['summary'] for n in news)
     segs = [opening] + ([window] if window_on else []) + body.split('\n\n') + [closing]
     gate('开场含本期日期', bool(_dcn) and _dcn in opening)
@@ -508,6 +512,15 @@ def build_outputs(root, p, cfg):
     src_count = sum(len(c['sources']) for c in cards)
     voice = cfg.get('voice') or {}
     bgm = cfg.get('bgm') or {}
+    mx = cfg.get('mix') or {}
+    mix = {'voice_volume': float(voice.get('volume', 1.0)),
+           'bgm_volume': float(bgm.get('volume', .33)),
+           'master_gain_db': float(mx.get('master_gain_db', voice.get('master_gain_db', 0.0))),
+           'duck': bool(mx.get('duck', True)),
+           'duck_db': float(mx.get('duck_db', -8)),
+           'fade_in': float(mx.get('fade_in', .4)),
+           'fade_out': float(mx.get('fade_out', .8)),
+           'concurrency': int(voice.get('concurrency', mx.get('concurrency', 12)))}
     vc = cfg.get('video_card_theme') or {}
     cv = cfg.get('cover_theme') or {}
     # 自动本期：manifest 内嵌封面配置也用当天日期，避免跨日后封面/水印日期落后
@@ -569,9 +582,13 @@ def build_outputs(root, p, cfg):
         'config': {
             'voice': {'mode': voice.get('mode', 'libretts'), 'voice': voice.get('voice', 'zh-CN-YunyangNeural'),
                       'rate': voice.get('rate', 0), 'volume': voice.get('volume', 1.0),
+                      'master_gain_db': mix['master_gain_db'], 'concurrency': mix['concurrency'],
                       'endpoint': voice.get('endpoint', p.get('voice_endpoint')), 'upload': voice.get('upload'),
                       'timeout_s': voice.get('timeout_s', 20), 'retries': voice.get('retries', 2)},
-            'bgm': {'file': bgm.get('file'), 'volume': bgm.get('volume', .33), 'enabled': bool(bgm.get('file'))},
+            'bgm': {'file': bgm.get('file'), 'volume': bgm.get('volume', .33), 'enabled': bool(bgm.get('file')),
+                    'duck': mix['duck'], 'duck_db': mix['duck_db'],
+                    'fade_in': mix['fade_in'], 'fade_out': mix['fade_out']},
+            'mix': mix,
             'subtitle': dict(sub, note='硬字幕 + mov_text 软轨 + 独立 SRT；开启打字机时硬字幕按 ASS 卡拉OK 逐字显现'),
             'typewriter': tw,
             'export_size': export_size,
@@ -600,6 +617,7 @@ def build_outputs(root, p, cfg):
     # 自动本期必须回写，否则跨天重建后 data.json / data_source.json / 页面仍是旧日期开场
     p['open'] = opening
     p['close'] = closing
+    p['disclaimer'] = '内容依据公开信息整理，具体以官方发布为准；仅供参考，不构成投资、医疗或法律建议。'
     p['issue'] = issue.get('issue_no') or p.get('issue')
     p['date'] = issue.get('date_line') or p.get('date')
     p['issue_cfg'] = issue

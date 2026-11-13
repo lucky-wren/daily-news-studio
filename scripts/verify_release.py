@@ -170,7 +170,8 @@ def main():
     ck('页面单一视频导出按钮', 'id="btnExpVideo"' in html and 'id="btnExpV"' not in html
        and 'id="btnExpH"' not in html)
     ck('播放器 rAF 连续推进', 'requestAnimationFrame(tick)' in html and 'function startPlay' in html)
-    ck('TTS 并发 6 路', 'VOICE_CONCURRENCY=6' in html)
+    ck('TTS 并发 12 路且可调', 'VOICE_CONCURRENCY=12' in html and 'id="vcConc"' in html
+       and "min(12, max(1, int(cfg.get('concurrency', 12))))" in open(os.path.join(ROOT, 'scripts', 'tts.py'), encoding='utf-8').read())
     ck('流程条 8 项定位', 'function goSec(' in html and html.count("['sec-") >= 8)
 
     vs = load('VIDEO_STATUS.json')
@@ -316,6 +317,53 @@ def main():
                cmv.get('layout') == 'equal'
                or (cmv.get('topic_count') == sem.get('topic_count')
                    and cmv.get('rest_count') == sem.get('rest_count')))
+
+    closing_md = open(os.path.join(ROOT, '口播文稿.md'), encoding='utf-8').read()
+    CLOSING = '以上是今日要闻速览，感谢收听，下期见。'
+    ck('片尾只朗读这一句', data.get('close') == CLOSING
+       and ds.get('closing') == CLOSING
+       and mf['segments'][-1]['text'] == CLOSING
+       and '# 片尾（可单独编辑）\n\n' + CLOSING in closing_md)
+    ck('免责声明仅页面展示', '免责声明（仅页面展示' in html
+       and '不构成投资' not in data.get('close', '')
+       and '不构成投资' not in ds.get('closing', '')
+       and 'disclaimer' in data)
+    ck('开场/片尾帧不再写免责声明',
+       "ctx.fillText('内容依据公开信息整理 · 以官方发布为准'" not in html)
+    ck('字幕烧进视频画面', '.sublayer{display:none!important}' in html
+       and 'function drawSubtitleCanvas(' in html
+       and 'drawSubtitleCanvas(ctx,540,960' in html)
+    ck('时间轴可拖动指针定位', all(x in html for x in
+       ('id="pbarHead"', 'id="tlHead"', 'function seekToRatio(', 'function bindSeek(',
+        'setPointerCapture')))
+    ck('混声设置齐备且前后端同源', all(('id="%s"' % x) in html for x in
+       ('mixVoice', 'mixBgm', 'mixMaster', 'mixDuck', 'mixFadeIn', 'mixFadeOut'))
+       and 'function mixCfg(' in html and 'mix' in mf['config']
+       and 'master_gain_db' in mf['config']['voice']
+       and 'concurrency' in mf['config']['voice'])
+    ck('服务端混音 duck 与淡入淡出',
+       'duck_db' in prod and 'afade=t=in' in prod and 'afade=t=out' in prod)
+    ck('逐句合成增量复用与持久化缓存',
+       'LAST_SIG' in html and 'indexedDB.open' in html
+       and 'function cacheGet(' in html and '增量复用' in html)
+    ck('封面三模板隔行底色与结构区分',
+       'if(row%2===1)' in html and 'if r % 2 == 1:' in rend
+       and "const tpl=S.cover.tpl" in html
+       and "'alternate_bands': True" in rend
+       and "plain_num = (tpl == 'list')" in rend)
+    ck('语义其余要闻序号独立且间距收紧',
+       'yy+=h+9*u' in html and 'yy += h + 9 * u' in rend
+       and 'numw' in rend and 'numW' in html)
+    ck('视频卡摘要放大、来源不溢出',
+       'Math.min(W,H)/1080' in html and 'bandBot' in html
+       and 'u = min(W, H) / 1080.0' in rend
+       and 'sum_fs = int((46 if' in rend
+       and 'card_overflow' in prod
+       and (not vs.get('ok') or vs.get('card_overflow') == []))
+    ck('视频卡前后端均按短边缩放（横屏来源不溢出）',
+       'Math.min(W,H)/1080' in html and 'u = min(W, H) / 1080.0' in rend
+       and 'const scale=Math.min(W,H)/1080' in html
+       and (not vs.get('ok') or vs.get('card_overflow') == []))
 
     ck('stillimage 调优', "'-tune', 'stillimage'" in prod)
     ck('音频 64k 单声道', "'-b:a', '64k'" in prod and "'-ac', '1'" in prod)

@@ -61,7 +61,7 @@ def main():
             'issue': cfg.get('issue'), 'cover_header': cfg.get('cover_header'),
             'opening': cfg.get('opening'), 'closing': cfg.get('closing'),
             'window_on': cfg.get('window_on', True),
-            'voice': cfg.get('voice'), 'bgm': cfg.get('bgm'),
+            'voice': cfg.get('voice'), 'bgm': cfg.get('bgm'), 'mix': cfg.get('mix'),
             'subtitle': cfg.get('subtitle', True),
             'typewriter': cfg.get('typewriter') or {},
             'export_size': cfg.get('export_size') or 'portrait',

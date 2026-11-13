@@ -230,6 +230,8 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     top = head_bottom + max(0, (avail - block_h) / 2)
     cell_h = row_h  # 兼容旧校验字段：每行高度
 
+    band = mix(base, (255, 255, 255) if dark else (0, 0, 0), .075)
+    plain_num = (tpl == 'list')
     for i, it in enumerate(items):
         c = i // rows
         r = i % rows
@@ -241,24 +243,43 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
         cy = y0 + (row_h - bh) / 2
         by = cy + (bh - badge) / 2
 
-        if tpl != 'list':
-            d.line([x0, y1 - 1, x1, y1 - 1], fill=line_c, width=1)
-        if tpl == 'headline' and i == 0:
-            d.line([x0, y0 - int(8 * u), x0 + int(170 * u), y0 - int(8 * u)],
-                   fill=acc, width=max(2, int(3 * u)))
+        # 三套模板统一隔行底色
+        if r % 2 == 1:
+            d.rounded_rectangle([x0, y0 + 2 * u, x1, y1 - 2 * u],
+                                radius=int(10 * u), fill=band)
+        # 结构差异：榜单卡片=逐行圆角卡；极简列表=顶部细线+纯文字序号；报头重点=首条头条块
+        if tpl == 'rank':
+            d.rounded_rectangle([x0, y0 + 3 * u, x1, y1 - 3 * u],
+                                radius=int(10 * u), outline=line_c, width=1)
+            if i < 3:
+                d.rectangle([x0, y0 + 3 * u, x0 + 6 * u, y1 - 3 * u], fill=acc)
+        elif tpl == 'list':
+            d.line([x0, y0, x1, y0], fill=line_c, width=1)
+        else:
+            if i == 0:
+                d.rounded_rectangle([x0, y0 + 2 * u, x1, y1 - 2 * u],
+                                    radius=int(10 * u), fill=mix(base, acc, .16))
+                d.rectangle([x0, y0 + 2 * u, x0 + 10 * u, y1 - 2 * u], fill=acc)
+                txt(d, (x0 + tx_off, y0 + 6 * u), '头条', F(int(20 * u), root, True), acc, True)
+            else:
+                d.line([x0, y1 - 1, x1, y1 - 1], fill=line_c, width=1)
 
         strong = i < 3
         bx = x0 + int(20 * u)
-        if strong:
-            d.rounded_rectangle([bx, by, bx + badge, by + badge], radius=int(11 * u), fill=acc)
-            numc = (255, 255, 255)
+        if plain_num:
+            txt(d, (bx, cy + bh / 2), '%02d' % it['rank'], nf,
+                acc if strong else fg, True, 'lm')
         else:
-            d.rounded_rectangle([bx, by, bx + badge, by + badge], radius=int(11 * u),
-                                fill=chip_bg, outline=edge, width=max(1, int(2 * u)))
-            numc = num_soft
-        txt(d, (bx + badge / 2, by + badge / 2), '%02d' % it['rank'], nf, numc, True, 'mm')
+            if strong:
+                d.rounded_rectangle([bx, by, bx + badge, by + badge], radius=int(11 * u), fill=acc)
+                numc = (255, 255, 255)
+            else:
+                d.rounded_rectangle([bx, by, bx + badge, by + badge], radius=int(11 * u),
+                                    fill=chip_bg, outline=edge, width=max(1, int(2 * u)))
+                numc = num_soft
+            txt(d, (bx + badge / 2, by + badge / 2), '%02d' % it['rank'], nf, numc, True, 'mm')
 
-        tx = x0 + tx_off
+        tx = x0 + (int(20 * u) + int(70 * u) if plain_num else tx_off)
         ty = cy + (bh - th) / 2
         for ln in ls:
             txt(d, (tx, ty), ln, tf, fg, True)
@@ -295,7 +316,8 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
             'centered': True, 'top_gap': round(top - head_bottom, 2),
             'bottom_gap': round(H - bottom_pad - (top + block_h), 2),
             'whitespace': round((avail - block_h) / 2, 2),
-            'fixed_font': True, 'label_chip': False, 'divider': tpl != 'list'}
+            'fixed_font': True, 'label_chip': False, 'divider': tpl != 'list',
+            'alternate_bands': True, 'template_structure': tpl}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
         with open(meta_path, 'w', encoding='utf-8') as f:
@@ -309,7 +331,7 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     tpl = cfg.get('tpl', 'frame_card')
     size = cfg.get('size', 'portrait')
     W, H = SIZES.get(size, SIZES['portrait'])
-    u = W / 1080.0
+    u = min(W, H) / 1080.0
     base = rgb(theme['bg']); fg = rgb(theme['txt']); sub = rgb(theme['sub'])
     acc = rgb(theme['acc']); line_c = rgba_color(theme['line'], base)
     card_bg = rgba_color(theme['card'], base)
@@ -318,9 +340,8 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     pad = int(72 * u)
 
     title_fs = int((70 if size == 'portrait' else 60) * u)
-    sum_fs = int((43 if size == 'portrait' else 37) * u)
-    src_fs = int(30 * u)
-    tf = F(title_fs, root, True); sf = F(sum_fs, root); rf = F(src_fs, root)
+    sum_fs = int((46 if size == 'portrait' else 40) * u)   # 摘要放大，与页面同尺度
+    tf = F(title_fs, root, True); sf = F(sum_fs, root)
 
     maxw = W - 2 * pad
     rv = max(0.0, min(1.0, float(reveal)))
@@ -328,13 +349,27 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     smy = card['summary'] if rv >= 1 else card['summary'][:max(0, int(round(len(card['summary']) * rv)))]
     tlines = wrap(d, ttl, tf, maxw)
     slines = wrap(d, smy, sf, maxw)
-    src_lines = []
-    for s in card.get('sources', []):
-        src_lines.append((str(s.get('platform', '')), wrap(d, str(s.get('url', '')), rf, maxw - int(30 * u))))
 
-    block_h = (len(tlines) * int(title_fs * 1.32) + int(34 * u)
-               + len(slines) * int(sum_fs * 1.5) + int(48 * u)
-               + sum((1 + len(ls)) * int(src_fs * 1.42) + int(12 * u) for _, ls in src_lines))
+    src_fs = int(30 * u)
+
+    def _src_lines(fs):
+        rf = F(fs, root)
+        return [(str(s.get('platform', '')),
+                 wrap(d, str(s.get('url', '')), rf, maxw - int(30 * u)))
+                for s in card.get('sources', [])]
+
+    def _block_h(sl, fs):
+        return (len(tlines) * int(title_fs * 1.32) + int(56 * u)
+                + len(slines) * int(sum_fs * 1.5) + int(48 * u)
+                + sum((1 + len(ls)) * int(fs * 1.42) + int(12 * u) for _, ls in sl))
+
+    src_lines = _src_lines(src_fs)
+    # 来源必须完整且不越出画面：字号自动收敛，仍放不下就报错而不是截断
+    while src_fs > int(16 * u) and _block_h(src_lines, src_fs) > H - int(220 * u):
+        src_fs -= int(1 * u)
+        src_lines = _src_lines(src_fs)
+    rf = F(src_fs, root)
+    block_h = _block_h(src_lines, src_fs)
     y = max(int(110 * u), (H - block_h) / 2)  # 垂直居中
     header_y = int(56 * u)
 
@@ -354,7 +389,7 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
 
     for ln in tlines:
         txt(d, (pad, y), ln, tf, fg, True); y += int(title_fs * 1.32)
-    y += int(34 * u)
+    y += int(56 * u)   # 标题与摘要拉开
     for ln in slines:
         txt(d, (pad, y), ln, sf, sub); y += int(sum_fs * 1.5)
     y += int(48 * u)
@@ -368,7 +403,8 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     im.save(out_path)
     meta = {'type': 'card', 'index': card['index'], 'w': W, 'h': H, 'tpl': tpl,
             'reveal': rv, 'block_bottom': y, 'title_lines': len(tlines), 'summary_lines': len(slines),
-            'sources': len(src_lines), 'overflow': y > H - int(40 * u)}
+            'sources': len(src_lines), 'src_fs': src_fs,
+            'overflow': y > H - int(40 * u)}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
         with open(meta_path, 'w', encoding='utf-8') as f:
@@ -723,7 +759,7 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
 
     # 头条卡高度按内容算：数值行 + 标题行 + 摘要行 + 来源行，不按固定权重撑满画面
     avail = H - head_bottom - footer_h
-    sec_pad = 20 * u
+    sec_pad = 14 * u
     hero = sem['hero']
     if hero:
         hx0, hx1 = pad + 34 * u, W - pad - 30 * u
@@ -819,12 +855,13 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
                            x=rx0, x2=rx1)
             rows = len(sem['rest'])
             colw = rx1 - rx0 - 52 * u
+            numw, textw = 48 * u, colw - 48 * u - 24 * u
             avail_rest = H - footer_h - ry - 12 * u
-            texts = ['%02d  %s' % (it['rank'], it['title']) for it in sem['rest']]
+            texts = [it['title'] for it in sem['rest']]
 
             def total_at(fs):
                 f = F(fs, root)
-                return sum(len(wrap(d, t, f, colw - 12 * u)) * fs * 1.30 + 14 * u
+                return sum(len(wrap(d, t, f, textw)) * fs * 1.30 + 8 * u
                            for t in texts)
 
             fs = 30 * u
@@ -834,16 +871,24 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             rh = min(avail_rest, total_at(fs) + 24 * u)
             _box(d, co, rx0, ry, rx1, ry + rh, 18 * u)
             f = F(fs, root)
+            nf2 = F(int(20 * u), root, True)
             yy = ry + 12 * u
             for k, t in enumerate(texts):
                 xx = rx0 + 26 * u
-                ls = wrap(d, t, f, colw - 12 * u)
-                _para(d, xx, yy, ls, f, fg, fs * 1.30)
+                rk = sem['rest'][k]['rank']
+                strong = rk <= 3
+                d.rounded_rectangle([xx, yy + 2 * u, xx + numw, yy + 2 * u + fs * 1.12],
+                                    radius=int(6 * u), fill=co['acc'] if strong else co['chip'],
+                                    outline=co['line'], width=1)
+                txt(d, (xx + numw / 2, yy + 2 * u + fs * .56), '%02d' % rk, nf2,
+                    (255, 255, 255) if strong else fg, True, 'mm')
+                ls = wrap(d, t, f, textw)
+                _para(d, xx + numw + 14 * u, yy, ls, f, fg, fs * 1.30)
                 h = len(ls) * fs * 1.30
                 if k < rows - 1:
-                    _rule(d, co, xx, rx1 - 26 * u, yy + h + 4 * u)
-                boxes.append([xx, yy, rx1 - 26 * u, yy + h + 4 * u])
-                yy += h + 14 * u
+                    _rule(d, co, xx, rx1 - 26 * u, yy + h + 3 * u)
+                boxes.append([xx, yy, rx1 - 26 * u, yy + h + 3 * u])
+                yy += h + 8 * u
     else:
         # 竖版：整块顺序 头条 -> 专题 -> 其余要闻
         cy = head_bottom
@@ -916,12 +961,13 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             cy = _sec_head(cy, '其余要闻', '%02d 条' % len(sem['rest']), '')
             rows = len(sem['rest'])
             colw = W - pad * 2 - 68 * u
+            numw, textw = 52 * u, colw - 52 * u - 26 * u
             avail_rest = H - footer_h - cy - 10 * u
-            texts = ['%02d  %s' % (it['rank'], it['title']) for it in sem['rest']]
+            texts = [it['title'] for it in sem['rest']]
 
             def total_at(fs):
                 f = F(fs, root)
-                return sum(len(wrap(d, t, f, colw - 12 * u)) * fs * 1.30 + 16 * u
+                return sum(len(wrap(d, t, f, textw)) * fs * 1.30 + 9 * u
                            for t in texts)
 
             fs = 32 * u
@@ -931,16 +977,24 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             rh = min(avail_rest, total_at(fs) + 24 * u)
             _box(d, co, pad, cy, W - pad, cy + rh, 20 * u)
             f = F(fs, root)
+            nf2 = F(int(21 * u), root, True)
             yy = cy + 12 * u
             for k, t in enumerate(texts):
                 xx = pad + 34 * u
-                ls = wrap(d, t, f, colw - 12 * u)
-                _para(d, xx, yy, ls, f, fg, fs * 1.30)
+                rk = sem['rest'][k]['rank']
+                strong = rk <= 3
+                d.rounded_rectangle([xx, yy + 2 * u, xx + numw, yy + 2 * u + fs * 1.12],
+                                    radius=int(6 * u), fill=co['acc'] if strong else co['chip'],
+                                    outline=co['line'], width=1)
+                txt(d, (xx + numw / 2, yy + 2 * u + fs * .56), '%02d' % rk, nf2,
+                    (255, 255, 255) if strong else fg, True, 'mm')
+                ls = wrap(d, t, f, textw)
+                _para(d, xx + numw + 14 * u, yy, ls, f, fg, fs * 1.30)
                 h = len(ls) * fs * 1.30
                 if k < rows - 1:
-                    _rule(d, co, xx, W - pad - 34 * u, yy + h + 5 * u)
-                boxes.append([xx, yy, W - pad - 34 * u, yy + h + 5 * u])
-                yy += h + 16 * u
+                    _rule(d, co, xx, W - pad - 34 * u, yy + h + 3 * u)
+                boxes.append([xx, yy, W - pad - 34 * u, yy + h + 3 * u])
+                yy += h + 9 * u
             cy += rh
 
     # 页脚
