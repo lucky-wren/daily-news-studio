@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "version": "1.0",
+  "timings": {},
+  "errors": [
+    "首次 Actions 前无成品，手动 Run workflow 后生成"
+  ],
+  "note": "随包占位，不代表云端已重建"
+}

@@ -1,0 +1,67 @@
+name: 每日要闻手动重建
+# 无自动触发。内容更新：Actions -> Run workflow 手动触发一次。
+# 页面不展示、不可配任何触发策略；本文件 on: 段只有手动触发。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-news-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依赖（字体 / ffmpeg / Pillow）
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-wqy-microhei ffmpeg
+          python -m pip install --quiet pillow
+          python -m pip install --quiet edge-tts || echo "edge-tts 可选通道未安装（默认 libretts 不受影响）"
+
+      - name: 取数与生成全部成品
+        env:
+          TZ: Asia/Shanghai
+        run: |
+          python scripts/daily_update.py --tts auto
+
+      - name: 硬校验（成品三轨 / 字幕 / 页面与数据一致）
+        run: |
+          python scripts/verify_release.py
+
+      - name: 精简站点包（不含原曲、脚本与缓存）
+        run: |
+          rm -rf _site && mkdir -p _site/media
+          cp index.html data.js data.json 口播文稿.md 封面清单.md render_manifest.json VIDEO_STATUS.json _site/ || true
+          cp data_source.json cover_theme.json video_card_theme.json _site/ || true
+          cp -r media/. _site/media/ || true
+
+      - name: 提交本期产物
+        run: |
+          git config user.name "daily-news-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data.js data.json 口播文稿.md 封面清单.md render_manifest.json BUILD_STATUS.json VIDEO_STATUS.json media/ data_source.json cover_theme.json || true
+          if git diff --cached --quiet; then echo '本期无变化'; else git commit -m "chore: 每日要闻重建 $(date -u +%Y-%m-%dT%H:%MZ)" && git push; fi
+
+      - name: 上传 Pages 站点包
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: 发布 Pages（未启用 Pages 时跳过，不让整条流水线红灯）
+        continue-on-error: true
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "tpl": "frame_card",
+  "theme": "deep_blue",
+  "size": "portrait",
+  "typewriter": {
+    "on": true,
+    "target": "subtitle",
+    "ms_per_char": 55,
+    "max_steps": 8,
+    "note": "打字机作用位置可设为字幕 / 视频帧 / 两者；预览同步演示。"
+  }
+}
