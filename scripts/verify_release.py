@@ -34,7 +34,7 @@ def main():
 
     data = load('data.json')
     ct = load('cover_theme.json')
-    cc = int(ct.get('count', 10))
+    cc = int(ct.get('count', 8))
     ck('封面条数可设置且合法', 1 <= cc <= 10, cc)
     js = open(os.path.join(ROOT, 'data.js'), encoding='utf-8').read()
     m = re.search(r'window\.__LIVE_DATA__=(\{.*\});', js, re.S)
@@ -112,14 +112,16 @@ def main():
        "'第一期'" not in open(os.path.join(ROOT, 'scripts', 'source.py'), encoding='utf-8').read()
        and "'第一期'" not in open(os.path.join(ROOT, 'scripts', 'render.py'), encoding='utf-8').read())
     ck('页面状态迁移会升级旧期号',
-       'S.issue.issue_no=normIssue' in html and "STATE_VER='l1-3'" in html
+       'S.issue.issue_no=normIssue' in html and "STATE_VER='l1-4'" in html
        and "function normIssue(" in html)
     ck('页面期号输入失焦会规范化', "$('issueNo').onchange" in html and 'normIssue($' in html)
     # ---- 报头日期间距：前后端同值且已拉开 ----
-    ck('页面报头日期已拉开', 'HEAD_DATE_GAP=46' in html and 'yy+HEAD_DATE_GAP*u' in html)
+    ck('页面报头日期已拉开且字号放大', 'HEAD_DATE_GAP=82' in html and 'DATE_FS=38' in html
+       and 'yy+HEAD_DATE_GAP*u' in html and 'HEAD_RULE_AT=126' in html)
     _rend = open(os.path.join(ROOT, 'scripts', 'render.py'), encoding='utf-8').read()
     ck('服务端报头日期与页面同值',
-       'HEAD_DATE_GAP = 46' in _rend and 'HEAD_RULE_AT = 64' in _rend
+       'HEAD_DATE_GAP = 82' in _rend and 'HEAD_RULE_AT = 126' in _rend
+       and 'DATE_FS = 38' in _rend and 'ISSUE_FS = 38' in _rend
        and _rend.count('HEAD_DATE_GAP * u') >= 1 and _rend.count('HEAD_RULE_AT * u') >= 2
        and 'def _date_badge(' in _rend and 'def _issue_badge(' in _rend)
     ck('服务端无旧的贴标题日期', "yy + 8 * u" not in _rend)
@@ -129,6 +131,11 @@ def main():
        and "co['date_box']" in _rend and "co['badge_red']" in _rend
        and "co['date_ink']" in _rend and "co['badge_ink']" in _rend
        and "txt(d, (pad, y + int(40 * u)), dl, f, fg" not in _rend)
+    ck('日期牌朱红竖杠已去掉（前后端）',
+       'bar_x' not in _rend and 'x0+10*u,by+9*u' not in html
+       and 'pad+10*u,by+9*u' not in html and 'co.acc;rr(ctx,x0+10*u' not in html)
+    ck('日期牌与期号字号统一放大', 'DATE_BH = 62' in _rend and 'ISSUE_BH = 68' in _rend
+       and 'DATE_BH=62' in html and 'ISSUE_BH=68' in html)
     ck('页面报头标签与服务端同配色',
        'dateBox:T.dark?mixHex' in html and 'badgeRed:T.dark?T.acc' in html
        and 'co.badgeRed' in html and 'co.dateBox' in html
@@ -170,8 +177,8 @@ def main():
     ck('页面单一视频导出按钮', 'id="btnExpVideo"' in html and 'id="btnExpV"' not in html
        and 'id="btnExpH"' not in html)
     ck('播放器 rAF 连续推进', 'requestAnimationFrame(tick)' in html and 'function startPlay' in html)
-    ck('TTS 并发 12 路且可调', 'VOICE_CONCURRENCY=12' in html and 'id="vcConc"' in html
-       and "min(12, max(1, int(cfg.get('concurrency', 12))))" in open(os.path.join(ROOT, 'scripts', 'tts.py'), encoding='utf-8').read())
+    ck('TTS 并发 16 路且可调', 'VOICE_CONCURRENCY=16' in html and 'id="vcConc"' in html
+       and "min(16, max(1, int(cfg.get('concurrency', 16))))" in open(os.path.join(ROOT, 'scripts', 'tts.py'), encoding='utf-8').read())
     ck('流程条 8 项定位', 'function goSec(' in html and html.count("['sec-") >= 8)
 
     vs = load('VIDEO_STATUS.json')
@@ -286,29 +293,54 @@ def main():
        and "'centered': True" in rend and 'stats_hidden:true' in html
        and 'baseFs=(land?34:38)' in html)
     ck('等权列表：条目卡片化且三档间距真实生效',
-       "SPACING = {'compact': (12, 16), 'standard': (16, 22), 'airy': (18, 26)}" in rend
+       "SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (14, 18)}" in rend
        and 'card_gap' in rend and "'card_gap': round(gap, 2)" in rend
-       and "SP={compact:[12,16],standard:[16,22],airy:[18,26]}" in html
+       and "SP={compact:[8,10],standard:[11,14],airy:[14,18]}" in html
        and 'card_gap:Math.round(gap)' in html
        and '\n    gap = 10 * u\n' not in rend and 'gap=10*u' not in html)
-    ck('统计条只在表格填了板块时绘制',
-       "if sem['boards']:" in rend and 'sem.boards.length?semStats' in html)
-    ck('杂志版其余要闻单列、字号按内容自适应（不重叠）',
-       'def total_at(fs)' in rend and 'const totalAt=' in html
+    ck('杂志版不画统计条（板块为空也不摆 00）',
+       "'stats_hidden': True" in rend and 'stats_hidden:true' in html
+       and "if sem['boards']:" not in rend
+       and 'sem.boards.length?semStats' not in html)
+    ck('杂志版精简为顺序行盒，文字块做相交自检',
+       'def list_section(' in rend and 'const listSection=' in html
+       and 'def draw_lines(' in rend and 'const drawLines=' in html
+       and "'overlap_count': len(ov)" in rend and 'overlap_count:ov.length' in html
        and "cols = 2 if len(sem['rest']) >= 4 else 1" not in rend
        and "cols=sem.rest.length>=4?2:1" not in html)
+    ck('杂志版删掉头条摘要/来源/角标与专题逐条来源',
+       "'来源 · '" not in rend[rend.index('def render_semantic_cover'):]
+       and "'来源 · '" not in html[html.index('function drawSemanticCover'):html.index('function drawCover')])
     ck('前后端语义块同逻辑',
        'function buildSemantic(' in html and 'def build_semantic(' in src_py
        and 'function drawSemanticCover(' in html and 'def render_semantic_cover(' in rend)
+    ck('横版杂志版重排为报头横贯＋头条横带＋下半双栏',
+       'def land_band(' in rend and 'land_fs, land_rh = land_band()' in rend
+       and 'const ry0=496*u' in html and 'const landList=' in html
+       and 'ly0, ly1 = head_bottom, H - footer_h' not in rend
+       and 'lx1=W*.41' not in html)
+    ck('横版资讯字号下限 30u 且两栏共用同一 fs',
+       'fs = min(34 * u, cap)' in rend and 'let fs=Math.min(34*u,cap)' in html
+       and 'max(26 * u, fs)' in rend and 'Math.max(26*u,fs)' in html)
     ck('默认封面模板为 semantic', ct.get('tpl') == 'semantic', ct.get('tpl'))
     if os.path.isfile(meta_path):
         cmv = load(os.path.join('.cache', 'cover_meta_%s.json' % esz0))
         if cmv.get('semantic'):
+            _exp = ('equal' if not cmv.get('enabled')
+                    else ('magazine_band' if cmv.get('size') == 'landscape' else 'magazine'))
             ck('语义封面渲染条数 = 设置条数', cmv.get('count') == cc, cmv.get('count'))
-            ck('封面版式标识正确', cmv.get('layout') in ('equal', 'magazine'), cmv.get('layout'))
-            ck('版式与本次表格素材一致',
-               cmv.get('layout') == ('magazine' if cmv.get('enabled') else 'equal'),
-               (cmv.get('layout'), cmv.get('enabled')))
+            ck('封面版式标识正确',
+               cmv.get('layout') in ('equal', 'magazine', 'magazine_band'), cmv.get('layout'))
+            ck('版式与本次表格素材一致', cmv.get('layout') == _exp,
+               (cmv.get('layout'), _exp))
+            if cmv.get('layout') == 'magazine_band':
+                ck('横版资讯字号≥30 且两栏字号统一',
+                   (cmv.get('land_fs') or 0) >= 30 and cmv.get('uniform_font') is True,
+                   (cmv.get('land_fs'), cmv.get('uniform_font')))
+                ck('横版双栏行高与导出字号同源',
+                   (cmv.get('land_rh') or 0) >= 78
+                   and abs((cmv.get('font_fs') or 0) - round(cmv.get('land_fs') or 0)) <= 1,
+                   (cmv.get('land_rh'), cmv.get('font_fs'), cmv.get('land_fs')))
             ck('语义封面头条数值同源',
                cmv.get('layout') == 'equal'
                or cmv.get('hero_value') == (sem.get('hero') or {}).get('value'),
@@ -317,6 +349,10 @@ def main():
                cmv.get('layout') == 'equal'
                or (cmv.get('topic_count') == sem.get('topic_count')
                    and cmv.get('rest_count') == sem.get('rest_count')))
+            ck('杂志版文字块两两不相交',
+               cmv.get('layout') == 'equal'
+               or (cmv.get('overlap_count') == 0 and (cmv.get('text_boxes') or 0) >= 8),
+               (cmv.get('overlap_count'), cmv.get('text_boxes'), cmv.get('overlaps')))
 
     closing_md = open(os.path.join(ROOT, '口播文稿.md'), encoding='utf-8').read()
     CLOSING = '以上是今日要闻速览，感谢收听，下期见。'
@@ -346,14 +382,37 @@ def main():
     ck('逐句合成增量复用与持久化缓存',
        'LAST_SIG' in html and 'indexedDB.open' in html
        and 'function cacheGet(' in html and '增量复用' in html)
-    ck('封面三模板隔行底色与结构区分',
-       'if(row%2===1)' in html and 'if r % 2 == 1:' in rend
+    ck('封面三模板隔行底色可设置且结构区分',
+       "if(S.cover.altBands!==false&&row%2===1)" in html and "cfg.get('alt_bands', True) and r % 2 == 1" in rend
+       and 'id="cvAltBands"' in html and 'alt_bands' in open(os.path.join(ROOT, 'cover_theme.json'), encoding='utf-8').read()
        and "const tpl=S.cover.tpl" in html
-       and "'alternate_bands': True" in rend
+       and "'alternate_bands': bool(cfg.get('alt_bands', True))" in rend
        and "plain_num = (tpl == 'list')" in rend)
-    ck('语义其余要闻序号独立且间距收紧',
-       'yy+=h+9*u' in html and 'yy += h + 9 * u' in rend
-       and 'numw' in rend and 'numW' in html)
+    ck('语义列表序号独立、行盒顺序推进且不复用 y',
+       'def num_chip(' in rend and 'const numChip=' in html
+       and 'lines.append((rh, row))' in rend and 'lines.push([rh,y=>' in html
+       and 'def draw_lines(' in rend and 'const drawLines=' in html
+       and "'divider': False" in rend
+       and "T.dark?'#dbe8f8':T.txt" in html and '(219, 232, 248)' in rend)
+    ck('杂志版精简编排：无统计条/摘要/来源/角标，字号下限 22u',
+       'def _draw_stats(' not in rend and 'statH=56*u' not in html
+       and 'stat_h = int(56 * u)' not in rend
+       and 'def hero_lines(' in rend and 'const heroLines=' in html
+       and '22 * u' in rend and '22*u' in html
+       and '先看这一条' not in rend and '先看这一条' not in html)
+    ck('榜单卡片无边框线',
+       "if(tpl==='rank'){\n   if(i<3)" in html and "if tpl == 'rank':\n            if i < 3:" in rend)
+    ck('报头重点头条角标放大且移到右上角',
+       "const tagTxt='头条',tagFs=Math.round(28*u)" in html and "tag_f = F(int(28 * u)" in rend)
+    ck('卡片来源只出现一个「来源」标题',
+       "ctx.fillText('来源',ix,bandTop+45*u)" in html
+       and "'来源 · '+s.platform" not in html and "'来源 · ' + platform" not in rend
+       and "txt(d, (pad, y), '来源'," in rend)
+    ck('取消后可立即再合成、断点续合',
+       'let voiceBusy=false' in html and 'voiceRun++' in html and '断点' in html
+       and 'Promise.all(missing.map' in html and 'Promise.all(raw.map' in html)
+    ck('等权封面整组居中且每侧留白封顶',
+       'const MAX_SIDE=84*u' in html and 'MAX_SIDE = 84 * u' in rend)
     ck('视频卡摘要放大、来源不溢出',
        'Math.min(W,H)/1080' in html and 'bandBot' in html
        and 'u = min(W, H) / 1080.0' in rend
@@ -365,6 +424,19 @@ def main():
        and 'const scale=Math.min(W,H)/1080' in html
        and (not vs.get('ok') or vs.get('card_overflow') == []))
 
+    ck('封面默认显示 8 条，且各源同源',
+       "count:8" in html and 'value="8"' in html
+       and "payload.get('cover_count', 8)" in rend
+       and "payload.get('cover_count') or 8" in src_py
+       and int(data.get('cover_count', 0)) == cc
+       and int(ds.get('cover_count', 0)) == cc
+       and int(ct.get('count', 0)) == cc)
+    ck('语义列表不再逐条缩字号，整组统一字号',
+       'uniform_lines' in rend and 'uniformLines' in html
+       and 'uniform_font_per_group' in rend and 'uniform_font_per_group:true' in html
+       and "while d.textlength(text, font=f) > maxw and fs > minfs" not in rend
+       and "while(ctx.measureText(text).width>maxW&&fs>minFs)" not in html
+       and "one_line(txt1" not in rend and 'oneLine(it.label' not in html)
     ck('stillimage 调优', "'-tune', 'stillimage'" in prod)
     ck('音频 64k 单声道', "'-b:a', '64k'" in prod and "'-ac', '1'" in prod)
 

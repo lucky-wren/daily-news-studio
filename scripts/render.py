@@ -21,13 +21,18 @@ GAPS = {'compact': {'gap': .18, 'pad': .55}, 'standard': {'gap': .62, 'pad': .80
 AVOID_HEAD = set('，。；：！？、）》」』】,.!?;:)]}')
 
 
-HEAD_DATE_GAP = 46   # 日期基线距标题底部；与 index.html 的 HEAD_DATE_GAP 同值
-HEAD_RULE_AT = 64   # 日期之后分隔线位置；与页面同值
+HEAD_DATE_GAP = 82   # 日期牌中心距标题块底部；与 index.html 同值（原 46，标题与日期贴太近）
+HEAD_RULE_AT = 126  # 日期牌下方分隔线位置；与页面同值
+HEAD_TITLE_AT = 72  # 主标题起点（期号胶囊放大后避免压字）
+DATE_FS = 38        # 日期牌字号（原 30）
+DATE_BH = 62        # 日期牌高度（原 48）
+ISSUE_FS = 38       # 期号胶囊字号（原 30）
+ISSUE_BH = 68       # 期号胶囊高度（原 56）
 
 
 def cover_count(cfg, payload):
-    """显示条数：来自 cover_theme.json / data_source.json / data.json，缺省 10。"""
-    v = cfg.get('count', payload.get('cover_count', 10))
+    """显示条数：来自 cover_theme.json / data_source.json / data.json，缺省 8。"""
+    v = cfg.get('count', payload.get('cover_count', 8))
     try:
         v = int(v)
     except (TypeError, ValueError):
@@ -164,18 +169,18 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     else:
         y += int(24 * u)
 
-    # 榜单模板与语义版共用报头标签：日期深色实底+朱红竖条，期号朱红实底，均白字。
+    # 榜单模板与语义版共用报头标签：日期深色实底、期号朱红实底，均白字，字号统一放大。
     rco = _sem_palette(theme)
     if show_date:
-        f = F(int(30 * u), root, True)
+        f = F(int(DATE_FS * u), root, True)
         dl = issue.get('date_line') or payload.get('date', '')
-        # 榜单版日期中心 y+40*u，与语义版同几何（中心 = 顶 + 34*u）
-        _date_badge(d, pad, y + int(6 * u), dl, f, rco, u)
+        # 与语义版同一套报头几何：中心距标题块底部 HEAD_DATE_GAP*u
+        _date_badge(d, pad, y, dl, f, rco, u)
     if show_issue:
-        f = F(int(30 * u), root, True)
+        f = F(int(ISSUE_FS * u), root, True)
         s = SRC.norm_issue(issue.get('issue_no') or payload.get('issue') or '第01期')
-        _issue_badge(d, W - pad, y + int(10 * u), s, f, rco, u)
-    y += int(96 * u) if (show_date or show_issue) else int(30 * u)
+        _issue_badge(d, W - pad, y + HEAD_DATE_GAP * u, s, f, rco, u)
+    y += int(138 * u) if (show_date or show_issue) else int(30 * u)
     head_bottom = y
 
     # 内容区：条数可设置；竖版单列 N 行，横版 2 列（前 ceil(N/2) 左、其余右）
@@ -203,7 +208,8 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     title_fs = int((44 if size == 'portrait' else 38) * u)
     line_factor = 1.18
     tx_off = int(20 * u) + badge + int(20 * u)
-    maxw = colw - tx_off - int(22 * u)
+    # 报头重点模板右上角有「头条」胶囊，标题右侧预留宽度，避免压字
+    maxw = colw - tx_off - int(22 * u) - (int(120 * u) if tpl == 'headline' else 0)
 
     def _measure(fs):
         f = F(fs, root, True)
@@ -244,13 +250,11 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
         by = cy + (bh - badge) / 2
 
         # 三套模板统一隔行底色
-        if r % 2 == 1:
+        if cfg.get('alt_bands', True) and r % 2 == 1:
             d.rounded_rectangle([x0, y0 + 2 * u, x1, y1 - 2 * u],
                                 radius=int(10 * u), fill=band)
         # 结构差异：榜单卡片=逐行圆角卡；极简列表=顶部细线+纯文字序号；报头重点=首条头条块
         if tpl == 'rank':
-            d.rounded_rectangle([x0, y0 + 3 * u, x1, y1 - 3 * u],
-                                radius=int(10 * u), outline=line_c, width=1)
             if i < 3:
                 d.rectangle([x0, y0 + 3 * u, x0 + 6 * u, y1 - 3 * u], fill=acc)
         elif tpl == 'list':
@@ -260,7 +264,15 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
                 d.rounded_rectangle([x0, y0 + 2 * u, x1, y1 - 2 * u],
                                     radius=int(10 * u), fill=mix(base, acc, .16))
                 d.rectangle([x0, y0 + 2 * u, x0 + 10 * u, y1 - 2 * u], fill=acc)
-                txt(d, (x0 + tx_off, y0 + 6 * u), '头条', F(int(20 * u), root, True), acc, True)
+                # 「头条」角标移到卡片右上角：朱红实底胶囊 + 白字，字号放大，不与标题抢位
+                tag_f = F(int(28 * u), root, True)
+                tag_w = d.textlength('头条', font=tag_f) + 40 * u
+                tag_h = 44 * u
+                tag_x, tag_y = x1 - tag_w - 14 * u, y0 + 8 * u
+                d.rounded_rectangle([tag_x, tag_y, tag_x + tag_w, tag_y + tag_h],
+                                    radius=tag_h / 2, fill=acc)
+                txt(d, (tag_x + tag_w / 2, tag_y + tag_h / 2), '头条', tag_f,
+                    (255, 255, 255), True, 'mm')
             else:
                 d.line([x0, y1 - 1, x1, y1 - 1], fill=line_c, width=1)
 
@@ -317,7 +329,7 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
             'bottom_gap': round(H - bottom_pad - (top + block_h), 2),
             'whitespace': round((avail - block_h) / 2, 2),
             'fixed_font': True, 'label_chip': False, 'divider': tpl != 'list',
-            'alternate_bands': True, 'template_structure': tpl}
+            'alternate_bands': bool(cfg.get('alt_bands', True)), 'template_structure': tpl}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
         with open(meta_path, 'w', encoding='utf-8') as f:
@@ -358,9 +370,11 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
                  wrap(d, str(s.get('url', '')), rf, maxw - int(30 * u)))
                 for s in card.get('sources', [])]
 
+    SRC_LABEL_H = int(40 * u)
     def _block_h(sl, fs):
         return (len(tlines) * int(title_fs * 1.32) + int(56 * u)
                 + len(slines) * int(sum_fs * 1.5) + int(48 * u)
+                + SRC_LABEL_H
                 + sum((1 + len(ls)) * int(fs * 1.42) + int(12 * u) for _, ls in sl))
 
     src_lines = _src_lines(src_fs)
@@ -393,8 +407,11 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     for ln in slines:
         txt(d, (pad, y), ln, sf, sub); y += int(sum_fs * 1.5)
     y += int(48 * u)
+    # 来源区只有一个「来源」标题；每行写平台名与完整地址，不再重复「来源 · 」
+    txt(d, (pad, y), '来源', F(int(30 * u), root, True), acc, True)
+    y += SRC_LABEL_H
     for platform, urls in src_lines:
-        txt(d, (pad, y), '来源 · ' + platform, rf, acc, True); y += int(src_fs * 1.42)
+        txt(d, (pad, y), platform, rf, acc, True); y += int(src_fs * 1.42)
         for ln in urls:
             txt(d, (pad + int(18 * u), y), ln, rf, sub); y += int(src_fs * 1.42)
         y += int(12 * u)
@@ -425,7 +442,7 @@ def _sem_palette(theme):
     else:
         card = mix(bg, (0, 0, 0), .045)
         chip = mix(bg, (0, 0, 0), .075)
-    # 报头标签实底：日期=深色块(白字+朱红竖条)，期号=朱红块(白字)。
+    # 报头标签实底：日期=深色块(白字，无竖条)，期号=朱红块(白字)。
     # 深主题用提亮 bg 做日期底，浅主题直接用主文字色做深底，白字对比均 >8:1。
     date_box = mix(bg, (255, 255, 255), .16) if theme['dark'] else fg
     badge_red = acc if theme['dark'] else mix(acc, (0, 0, 0), .12)
@@ -436,28 +453,25 @@ def _sem_palette(theme):
 
 
 def _date_badge(d, x0, yy, date_cn, f, co, u):
-    """日期牌：深色实底 + 朱红竖条 + 白色粗字。
-    文字中心仍以 HEAD_DATE_GAP 为基准，块完整落在分隔线 HEAD_RULE_AT 之前。"""
+    """日期牌：深色实底 + 白色粗字，无朱红竖条。
+    牌中心距标题块底部 HEAD_DATE_GAP*u，字号 DATE_FS，块高 DATE_BH。"""
     s = str(date_cn).replace('，', ' · ')
     tw = d.textlength(s, font=f)
-    bar_x, bar_w = 10 * u, 6 * u
-    tx = x0 + 32 * u
-    bw = 32 * u + tw + 22 * u
-    bh = 48 * u
-    by = yy + 10 * u
-    d.rounded_rectangle([x0, by, x0 + bw, by + bh], radius=9 * u, fill=co['date_box'])
-    d.rounded_rectangle([x0 + bar_x, by + 9 * u, x0 + bar_x + bar_w, by + bh - 9 * u],
-                        radius=3 * u, fill=co['acc'])
-    txt(d, (tx, yy + HEAD_DATE_GAP * u - 12 * u), s, f, co['date_ink'], True, 'lm')
+    tx = x0 + 26 * u
+    bw = 26 * u + tw + 24 * u
+    bh = DATE_BH * u
+    by = yy + (HEAD_DATE_GAP - DATE_BH / 2) * u
+    d.rounded_rectangle([x0, by, x0 + bw, by + bh], radius=10 * u, fill=co['date_box'])
+    txt(d, (tx, by + bh / 2), s, f, co['date_ink'], True, 'lm')
     return bw
 
 
-def _issue_badge(d, x1, y_top, s, f, co, u):
-    """期号胶囊：朱红实底 + 白字，无描边（描边此前已明确去掉）。"""
-    bw = d.textlength(s, font=f) + 54 * u
-    bh = 56 * u
+def _issue_badge(d, x1, y_center, s, f, co, u):
+    """期号胶囊：朱红实底 + 白字，无描边；y_center 为胶囊垂直中心。"""
+    bw = d.textlength(s, font=f) + 56 * u
+    bh = ISSUE_BH * u
     bx = x1 - bw
-    by = y_top - 4 * u
+    by = y_center - bh / 2
     d.rounded_rectangle([bx, by, bx + bw, by + bh], radius=bh / 2, fill=co['badge_red'])
     txt(d, (bx + bw / 2, by + bh / 2), s, f, co['badge_ink'], True, 'mm')
     return bx, by, bw, bh
@@ -545,8 +559,8 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
     _spaced(d, pad + 72 * u, yy, 'DAILY  BRIEF', F(24, root, True), co['acc'], 3 * u)
     if show_i:
         s = SRC.norm_issue(issue.get('issue_no') or payload.get('issue') or '第01期')
-        _issue_badge(d, W - pad, yy, s, F(30 * u, root, True), co, u)
-    yy += 60 * u
+        _issue_badge(d, W - pad, yy + 28 * u, s, F(ISSUE_FS * u, root, True), co, u)
+    yy += HEAD_TITLE_AT * u
     if show_t:
         big = 80
         f = F(big * u, root, True)
@@ -559,7 +573,7 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
         yy += 20 * u
     date_cn = issue.get('date_cn') or issue.get('date_line') or payload.get('date', '')
     if show_d:
-        _date_badge(d, pad, yy, date_cn, F(30 * u, root, True), co, u)
+        _date_badge(d, pad, yy, date_cn, F(DATE_FS * u, root, True), co, u)
     yy += HEAD_RULE_AT * u
     _rule(d, co, pad, W - pad, yy)
     head_bottom = yy + 24 * u
@@ -574,10 +588,10 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
     innerw = colw - tx_off - 24 * u
     # 留白三档：只改「卡片内上下留白」与「卡片之间的真空隙」，字号固定不放大。
     # 剩余高度不摊进卡间距，全部留给整组上下居中。
-    SPACING = {'compact': (12, 16), 'standard': (16, 22), 'airy': (18, 26)}
+    SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (14, 18)}
     pad_v, gap = SPACING.get(cfg.get('gap', 'airy'), SPACING['airy'])
     pad_v, gap = pad_v * u, gap * u
-    min_pad_v, min_gap = 10 * u, 14 * u
+    min_pad_v, min_gap = 6 * u, 8 * u
     base_fs = (34 if land else 38) * u
     min_fs = 30 * u
 
@@ -606,6 +620,14 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
     card_h = maxbh + 2 * pad_v
     row_h = card_h + gap
     block_h = rows * card_h + (rows - 1) * gap
+    # 整组仍上下居中，但每侧留白封顶 84u；多出的高度转成卡片内留白，
+    # 不把条目间距拉大、也不让内容缩成中间一小条。
+    MAX_SIDE = 84 * u
+    if (avail - block_h) / 2 > MAX_SIDE:
+        pad_v += (avail - block_h - 2 * MAX_SIDE) / (2 * rows)
+        card_h = maxbh + 2 * pad_v
+        row_h = card_h + gap
+        block_h = rows * card_h + (rows - 1) * gap
     top = head_bottom + max(0, (avail - block_h) / 2)
     ink = (255, 255, 255) if co['dark'] else (0, 0, 0)
     stripe = mix(co['bg'], ink, .075)
@@ -616,16 +638,18 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
         x = pad + col * (colw + col_gap)
         y0 = top + row * row_h
         y1 = y0 + card_h
-        if i % 2 == 1:
+        if cfg.get('alt_bands', True) and i % 2 == 1:
             d.rounded_rectangle([x, y0, x + colw, y1], radius=10 * u, fill=stripe)
         d.line([x, y1, x + colw, y1], fill=strong_line, width=1)
         bx = x + 34 * u
         by = y0 + (card_h - numw) / 2
         strong = i < 3
-        d.rounded_rectangle([bx, by, bx + numw, by + numw], radius=numw * .21,
-                            fill=co['acc'] if strong else co['chip'])
+        # 04 起改高对比实底：深主题浅底深字 / 浅主题深底白字，序号一眼可辨
+        num_bg = co['acc'] if strong else ((219, 232, 248) if co['dark'] else co['fg'])
+        num_ink = (255, 255, 255) if strong else ((16, 31, 51) if co['dark'] else (255, 255, 255))
+        d.rounded_rectangle([bx, by, bx + numw, by + numw], radius=numw * .21, fill=num_bg)
         txt(d, (bx + numw / 2, by + numw / 2), '%02d' % (i + 1),
-            F(30 * u, root, True), (255, 255, 255) if strong else co['fg'], True, 'mm')
+            F(34 * u, root, True), num_ink, True, 'mm')
         f = F(fs, root, True)
         ty = y0 + (card_h - blocks[i][1]) / 2
         for k, ln in enumerate(blocks[i][0]):
@@ -681,8 +705,13 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
 
 
 def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
-    """杂志版：所有语义元素（数值/趋势/板块/专题/机构/主句/角标）只从表格可选列读。
-    表格未填可选列时改走等权列表，两套版式共用报头、日期、期号、主题、水印与条数设置。"""
+    """杂志版（精简编排）：语义元素只从表格可选列读，程序不猜不编。
+
+    元素只保留：报头 / 头条(标签+数值+标题) / 专题(列表) / 其余要闻(列表) / 页脚。
+    统计条、头条摘要、来源行、时间角标、专题「N 条合并」、逐条细线全部去掉。
+    所有文字用「顺序行盒」逐行推进 y：每行高度 >= 实际文字 bbox，行间留固定空隙，
+    并登记每个文字块的 bbox 做两两相交自检（overlap_count 写进 meta）。
+    """
     import source as SRC
     theme = THEMES.get(cfg.get('theme', 'deep_blue'), THEMES['deep_blue'])
     size = cfg.get('size', 'portrait')
@@ -690,7 +719,6 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
     u = min(W, H) / 1080.0
     co = _sem_palette(theme)
     n = cover_count(cfg, payload)
-    # 以本次条数重算，保证统计条与条数一致；不读 payload 里可能过期的缓存
     sem = SRC.build_semantic(payload, n)
     if not sem['enabled']:
         return _render_equal_cover(root, payload, cfg, out_path, meta_path, sem)
@@ -698,312 +726,376 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
     head = cfg.get('cover_header') or payload.get('cover_header') or {}
     issue = cfg.get('issue') or payload.get('issue_cfg') or {}
     wm = cfg.get('wm') or {}
-    acc, fg, sub, line = co['acc'], co['fg'], co['sub'], co['line']
+    acc, fg, sub = co['acc'], co['fg'], co['sub']
     im = Image.new('RGB', (W, H), co['bg'])
     d = ImageDraw.Draw(im)
-    boxes = []
+    tboxes = []          # [x0,y0,x1,y1,tag]，所有文字块
+    boxes = []           # 区块盒子，仅用于 meta
+    section_fs = []      # 各列表统一字号记录（回归用）
     pad = 58 * u
+    land = size == 'landscape'
+    footer_h = 62 * u
+    gap_cfg = cfg.get('gap', 'airy')
+    row_gap = {'compact': 12, 'standard': 18, 'airy': 24}.get(gap_cfg, 18) * u
     d.rectangle([0, 0, W, max(3, int(6 * u))], fill=acc)
     show_t = head.get('show_title', True)
     show_d = head.get('show_date', True)
     show_i = head.get('show_issue', True)
     title = head.get('title', '每日要闻速览')
 
-    land = size == 'landscape'
-    footer_h = 62 * u
-    stat_h = int(118 * u)
+    def T(x, y, s, f, fill, tag, anchor=None, bold=False):
+        """画一行文字并登记真实 bbox。"""
+        s = str(s)
+        a = anchor or 'la'
+        bb = d.textbbox((x, y), s, font=f, anchor=a)
+        txt(d, (x, y), s, f, fill, bold, a)
+        tboxes.append([round(bb[0], 1), round(bb[1], 1), round(bb[2], 1),
+                       round(bb[3], 1), tag])
+        return bb
 
-    def _draw_header(x0, x1, y0, big):
+    def num_chip(x, y, h, rk, strong, tag):
+        """序号小色块 + 数字（与右侧文字 x 不重叠）。"""
+        bw = min(58 * u, h * 1.25)
+        bh = min(h * .82, 44 * u)
+        rbg = acc if strong else ((219, 232, 248) if co['dark'] else fg)
+        rink = (255, 255, 255) if strong else ((16, 31, 51) if co['dark'] else (255, 255, 255))
+        d.rounded_rectangle([x, y + (h - bh) / 2, x + bw, y + (h + bh) / 2],
+                            radius=int(6 * u), fill=rbg)
+        T(x + bw / 2, y + h / 2, '%02d' % rk, F(int(25 * u), root, True),
+          rink, tag + '_num', 'mm', True)
+        return x + bw + 16 * u
+
+    def uniform_lines(texts, maxw, fs0, minfs, max_lines, rowh):
+        """整组共用一个字号：长标题换行到 <= max_lines，不逐条缩字号、不截断。
+        行高上限由 rowh 反推，保证两行文字也不越出卡片。"""
+        cap = int((rowh - 14 * u) / (max_lines * 1.32))
+        fs = max(int(minfs), min(int(fs0), cap))
+        f = F(int(fs), root, True)
+        rows = [wrap(d, t, f, maxw) for t in texts]
+        while fs > int(minfs) and any(len(r) > max_lines for r in rows):
+            fs -= 1
+            f = F(int(fs), root, True)
+            rows = [wrap(d, t, f, maxw) for t in texts]
+        return f, rows, int(fs)
+
+    def overlaps():
+        out = []
+        for i, a in enumerate(tboxes):
+            for b in tboxes[i + 1:]:
+                ox = min(a[2], b[2]) - max(a[0], b[0])
+                oy = min(a[3], b[3]) - max(a[1], b[1])
+                if ox > 6 * u and oy > 6 * u:
+                    out.append((a[4], b[4], round(ox, 1), round(oy, 1)))
+        return out
+
+    # ------------------------------------------------------------ 报头
+    def header(x0, x1, y0, big):
         yy = y0
         d.rectangle([x0, yy + 12 * u, x0 + 56 * u, yy + 17 * u], fill=acc)
-        _spaced(d, x0 + 72 * u, yy, 'DAILY  BRIEF', F(24, root, True), acc, 3 * u)
+        _spaced(d, x0 + 72 * u, yy, 'DAILY  BRIEF', F(24 * u, root, True), acc, 3 * u)
+        tboxes.append([round(x0 + 72 * u, 1), round(yy, 1),
+                       round(x0 + 72 * u + 260 * u, 1), round(yy + 30 * u, 1), 'kicker'])
         if show_i:
             s = SRC.norm_issue(issue.get('issue_no') or payload.get('issue') or '第01期')
-            _issue_badge(d, x1, yy, s, F(30 * u, root, True), co, u)
-        yy += 60 * u
+            bx, by, bw, bh = _issue_badge(d, x1, yy + 28 * u, s,
+                                          F(ISSUE_FS * u, root, True), co, u)
+            tboxes.append([round(bx, 1), round(by, 1), round(bx + bw, 1),
+                           round(by + bh, 1), 'issue'])
+        yy += HEAD_TITLE_AT * u
         if show_t:
             f = F(big * u, root, True)
             while d.textlength(title, font=f) > (x1 - x0) and big > 40:
                 big -= 2
                 f = F(big * u, root, True)
-            txt(d, (x0, yy), title, f, fg, True)
-            yy += big * u * 1.16
+            bb = T(x0, yy, title, f, fg, 'title', bold=True)
+            yy = bb[3] + 6 * u
         else:
             yy += 20 * u
+        rule_base = yy
         date_cn = issue.get('date_cn') or issue.get('date_line') or payload.get('date', '')
         if show_d:
-            _date_badge(d, x0, yy, date_cn, F(30 * u, root, True), co, u)
-        yy += HEAD_RULE_AT * u
+            bw = _date_badge(d, x0, rule_base, date_cn, F(DATE_FS * u, root, True), co, u)
+            by0 = rule_base + HEAD_DATE_GAP * u - DATE_BH / 2 * u
+            tboxes.append([round(x0, 1), round(by0, 1),
+                           round(x0 + bw, 1), round(by0 + DATE_BH * u, 1), 'date'])
+        yy = rule_base + HEAD_RULE_AT * u
         _rule(d, co, x0, x1, yy)
         return yy + 24 * u
 
-    def _draw_stats(x0, x1, y0, h):
-        d.rounded_rectangle([x0, y0, x1, y0 + h], radius=14 * u,
-                            fill=co['card'], outline=co['line'], width=1)
-        cw = (x1 - x0) / 3
-        for i, st in enumerate(sem['stats']):
-            cx = x0 + cw * (i + .5)
-            txt(d, (cx, y0 + 12 * u), st['num'], F(int(h * .40), root, True),
-                acc if i == 0 else fg, True, 'ma')
-            txt(d, (cx, y0 + h * .68), st['label'], F(int(h * .19), root), sub, anchor='ma')
-            if i < 2:
-                d.line([x0 + cw * (i + 1), y0 + 16 * u,
-                        x0 + cw * (i + 1), y0 + h - 16 * u], fill=line, width=1)
-        return y0 + h + 24 * u
-
     if not land:
-        y = _draw_header(pad, W - pad, 62 * u, 88)
-        head_bottom = _draw_stats(pad, W - pad, y, stat_h) if sem['boards'] else y
+        head_bottom = header(pad, W - pad, 62 * u, 88)
     else:
         head_bottom = 40 * u
+    land_fs, land_rh = 0, 0   # 横版双栏列表的实际字号/行高，写入 meta 供回归读取
 
-    # 头条卡高度按内容算：数值行 + 标题行 + 摘要行 + 来源行，不按固定权重撑满画面
-    avail = H - head_bottom - footer_h
-    sec_pad = 14 * u
-    hero = sem['hero']
-    if hero:
-        hx0, hx1 = pad + 34 * u, W - pad - 30 * u
-        f, ls, fs = _fit(d, hero['title'], hx1 - hx0, 100 * u, 36 * u, 20 * u, root, 2, True)
-        sm = hero.get('brief') or hero.get('summary') or ''
-        fs2, ls2, sz2 = _fit(d, sm, hx1 - hx0, 78 * u, 25 * u, 16 * u, root, 2) if sm else (None, [], 0)
-        need = (22 + 42 + (148 if hero.get('value') else 0)) * u
-        need += len(ls) * fs * 1.30
-        need += (12 * u + len(ls2) * sz2 * 1.40) if sm else 0
-        need += 24 * u + 46 * u
-        hero_h = min(avail * .42, max(240 * u, need))
-    else:
-        hero_h = 0
-    topic_h = 0
-    rest_h = 0
-    rest_fs = 32 * u
+    # ------------------------------------------------------------ 行盒工具
+    def draw_lines(lines, x0, y0, inner=None):
+        """lines: [(h, fn(y))]；fn 内部画一行并登记文字块。返回结束 y。"""
+        y = y0
+        for h, fn in lines:
+            fn(y)
+            y += h + row_gap
+        return y - row_gap
 
-    def _sec_head(yy, name, meta, right, x=None, x2=None):
-        x = pad if x is None else x
-        x2 = W - pad if x2 is None else x2
-        _sec(d, co, x, yy, name, meta, right, x2, root)
-        return yy + 48 * u
+    def hero_lines(hero, x0, x1, big):
+        """头条只保留：标签 / 数值行 / 标题（最多 2 行）。"""
+        out = []
+        out.append((46 * u, lambda y: T(x0, y, '今日头条', F(32 * u, root, True),
+                                        acc, 'hero_label', bold=True)))
+        if hero.get('value'):
+            def value_row(y, hero=hero):
+                fa = F(int(86 * u), root, True)
+                fv = F(int(126 * u), root, True)
+                aw = d.textlength(hero.get('arrow') or '', font=fa)
+                xx = x0
+                if hero.get('arrow'):
+                    T(xx, y + 26 * u, hero['arrow'], fa, acc, 'hero_arrow', bold=True)
+                    xx += aw + 14 * u
+                bb = T(xx, y, hero['value'], fv, acc, 'hero_value', bold=True)
+                if hero.get('unit'):
+                    T(bb[2] + 14 * u, y + 82 * u, hero['unit'], F(30 * u, root),
+                      acc, 'hero_unit')
+            out.append((152 * u, value_row))
+        f, ls, fs = _fit(d, hero['title'], x1 - x0, 110 * u, big * u, 26 * u,
+                         root, 2, True)
+        for ln in ls[:2]:
+            out.append((fs * 1.34, (lambda ln=ln, f=f: lambda y: T(x0, y, ln, f, fg,
+                                                                    'hero_title', bold=True))(ln, f)))
+        return out
 
-    # ---------------- 竖版 / 横版分区
+    def list_section(name, items, x0, x1, y0, fs0, minfs, tag, rowh=None):
+        """专题/其余要闻：标题行 + 每行「序号块 + 统一字号文字」，隔行淡底。
+        整组共用一个字号，长标题换行到最多 2 行，不逐条缩字号、不截断。"""
+        lines = []
+        lines.append((54 * u, lambda y: T(x0, y, name, F(34 * u, root, True),
+                                          fg, tag + '_head', bold=True)))
+        textx = x0 + 58 * u + 16 * u
+        maxw = x1 - textx - 8 * u
+        rh = rowh or max(74 * u, fs0 * 1.5)
+        texts = [str(it.get('label') or it['title']) for it in items]
+        f, rows, fs = uniform_lines(texts, maxw, fs0, minfs, 2, rh)
+        lh = fs * 1.32
+        section_fs.append({'tag': tag, 'fs': fs, 'rows': len(items),
+                           'lines': [len(r) for r in rows]})
+        for k, it in enumerate(items):
+            ls = rows[k]
+            ty = (rh - 6 * u - len(ls) * lh) / 2
+
+            def row(y, f=f, ls=ls, k=k, it=it, rh=rh, tag=tag, ty=ty, lh=lh):
+                boxes.append([x0, y, x1, y + rh - 6 * u])
+                stripe = bool(cfg.get('stripe', True)) and k % 2 == 0
+                if stripe:
+                    d.rounded_rectangle([x0 - 8 * u, y, x1, y + rh - 6 * u],
+                                        radius=int(10 * u), fill=co['card'])
+                nx = num_chip(x0, y, rh - 6 * u, it['rank'], it['rank'] <= 3,
+                              tag + '_row' + str(k))
+                for j, ln in enumerate(ls):
+                    T(nx, y + ty + j * lh, ln, f, fg,
+                      tag + '_text' + str(k) + '_' + str(j), bold=True)
+            lines.append((rh, row))
+        end = draw_lines(lines, x0, y0)
+        return end, len(lines) - 1
+
+    # ------------------------------------------------------------ 竖版
+    if not land:
+        cy = head_bottom + 12 * u
+        hero = sem['hero']
+        if hero:
+            hx0, hx1 = pad + 30 * u, W - pad - 30 * u
+            ls = hero_lines(hero, hx0, hx1, 42)
+            inner = 28 * u
+            card_h = inner * 2 + sum(h for h, _ in ls) + row_gap * (len(ls) - 1)
+            _box(d, co, pad, cy, W - pad, cy + card_h, 20 * u)
+            boxes.append([pad, cy, W - pad, cy + card_h])
+            draw_lines(ls, hx0, cy + inner)
+            cy += card_h + 28 * u
+
+        all_items = []
+        for t in sem['topics']:
+            for it in t['items']:
+                all_items.append({'rank': it['rank'],
+                                  'label': ' · '.join(x for x in
+                                                      ((it.get('org') or ''),
+                                                       (it.get('brief') or it['title'])) if x),
+                                  'title': it['title']})
+        rest = [{'rank': it['rank'], 'label': it['title'], 'title': it['title']}
+                for it in sem['rest']]
+        # 统一列表行高：专题与其余要闻共用同一 rowh，字号全封面一致。
+        # 专题结束的 y 依赖 rowh，而 rowh 由剩余高度反推，迭代收敛。
+        cy0 = cy
+        rh = 96 * u
+        if all_items or rest:
+            for _ in range(4):
+                cy_t = cy0 + (54 * u + len(all_items) * (rh + row_gap) - row_gap
+                              + 34 * u) if all_items else cy0
+                avail = H - footer_h - 20 * u - cy_t
+                rh = max(58 * u, min(96 * u,
+                        (avail - 54 * u - len(rest) * row_gap) / max(1, len(rest))))
+        if all_items:
+            label = '专题 · ' + (sem['topics'][0]['name'] or sem['topics'][0]['id'])
+            e, _ = list_section(label, all_items, pad + 26 * u, W - pad - 26 * u,
+                                cy, 30 * u, 22 * u, 'topic', rowh=rh)
+            cy = e + 34 * u
+        if rest:
+            e, _ = list_section('其余要闻 · %d 条' % len(rest), rest,
+                                pad + 26 * u, W - pad - 26 * u, cy,
+                                30 * u, 22 * u, 'rest', rowh=rh)
+            cy = e
+            boxes.append([pad + 26 * u, cy - rh, W - pad - 26 * u, cy])
+
+    # ------------------------------------------------------------ 横版：整条骨架重排
+    # 弃用「左竖长头卡 + 右 7 行小字」：改为 报头横贯 → 头条横带 → 下半双栏列表。
+    # 两栏共用同一行高与同一字号，资讯字号由 18~24 提到 30+。
+    def land_band():
+        nonlocal head_bottom
+        x0, x1 = pad, W - pad
+        hy0 = 56 * u
+        d.rectangle([x0, hy0 + 12 * u, x0 + 56 * u, hy0 + 17 * u], fill=acc)
+        _spaced(d, x0 + 72 * u, hy0, 'DAILY  BRIEF', F(24 * u, root, True), acc, 3 * u)
+        tboxes.append([round(x0 + 72 * u, 1), round(hy0, 1),
+                       round(x0 + 332 * u, 1), round(hy0 + 30 * u, 1), 'kicker'])
+        ty = hy0 + 62 * u
+        if show_t:
+            fs_t = 64
+            f = F(fs_t * u, root, True)
+            while d.textlength(title, font=f) > (x1 - x0) * .64 and fs_t > 40:
+                fs_t -= 2
+                f = F(fs_t * u, root, True)
+            T(x0, ty, title, f, fg, 'title', bold=True)
+        # 日期牌 + 期号胶囊与标题同一行带、靠右
+        badge_y = ty + 34 * u
+        right = x1
+        if show_i:
+            s = SRC.norm_issue(issue.get('issue_no') or payload.get('issue') or '第01期')
+            bx, by, bw, bh = _issue_badge(d, right, badge_y, s,
+                                          F(ISSUE_FS * u, root, True), co, u)
+            tboxes.append([round(bx, 1), round(by, 1), round(bx + bw, 1),
+                           round(by + bh, 1), 'issue'])
+            right = bx - 20 * u
+        date_cn = issue.get('date_cn') or issue.get('date_line') or payload.get('date', '')
+        if show_d:
+            ds = str(date_cn).replace('，', ' · ')
+            f = F(DATE_FS * u, root, True)
+            bw = 26 * u + d.textlength(ds, font=f) + 24 * u
+            bh = DATE_BH * u
+            bx, by = right - bw, badge_y - bh / 2
+            d.rounded_rectangle([bx, by, bx + bw, by + bh], radius=10 * u,
+                                fill=co['date_box'])
+            txt(d, (bx + 26 * u, by + bh / 2), ds, f, co['date_ink'], True, 'lm')
+            tboxes.append([round(bx, 1), round(by, 1), round(bx + bw, 1),
+                           round(by + bh, 1), 'date'])
+        _rule(d, co, x0, x1, 226 * u)
+        head_bottom = 246 * u
+
+        # 头条横带：全宽卡片，左标签＋大数字，右标题，中间淡竖线
+        hero = sem['hero']
+        by0, by1 = 262 * u, 470 * u
+        if hero:
+            _box(d, co, x0, by0, x1, by1, 20 * u)
+            boxes.append([x0, by0, x1, by1])
+            ix0, ix1 = x0 + 30 * u, x1 - 30 * u
+            split = ix0 + (ix1 - ix0) * .40
+            T(ix0, by0 + 26 * u, '今日头条', F(32 * u, root, True), acc,
+              'hero_label', bold=True)
+            if hero.get('value'):
+                fa, fv = F(64 * u, root, True), F(100 * u, root, True)
+                xx = ix0
+                if hero.get('arrow'):
+                    bb = T(xx, by0 + 76 * u, hero['arrow'], fa, acc,
+                           'hero_arrow', bold=True)
+                    xx = bb[2] + 12 * u
+                bb = T(xx, by0 + 62 * u, hero['value'], fv, acc,
+                       'hero_value', bold=True)
+                if hero.get('unit'):
+                    T(bb[2] + 12 * u, by0 + 118 * u, hero['unit'],
+                      F(28 * u, root), acc, 'hero_unit')
+            d.line([split, by0 + 26 * u, split, by1 - 26 * u],
+                   fill=co['line'], width=1)
+            tx0 = split + 30 * u
+            f, ls, fs = _fit(d, hero['title'], ix1 - tx0, 120 * u,
+                             42 * u, 30 * u, root, 2, True)
+            lh = fs * 1.34
+            lines = ls[:2]
+            ty0 = by0 + (by1 - by0 - len(lines) * lh) / 2
+            for j, ln in enumerate(lines):
+                T(tx0, ty0 + j * lh, ln, f, fg, 'hero_title', bold=True)
+
+        # 下半双栏：专题 / 其余要闻，共用行高与字号
+        ry0 = 496 * u
+        avail = H - footer_h - 14 * u - ry0
+        gapL = row_gap * .5
+        all_items = []
+        for t in sem['topics']:
+            for it in t['items']:
+                all_items.append({'rank': it['rank'],
+                                  'label': ' · '.join(x for x in
+                                                      ((it.get('org') or ''),
+                                                       (it.get('brief') or it['title'])) if x),
+                                  'title': it['title']})
+        rest = [{'rank': it['rank'], 'label': it['title'], 'title': it['title']}
+                for it in sem['rest']]
+        lx0, lx1 = x0 + 8 * u, W * .49
+        rx0, rx1 = W * .51, x1 - 8 * u
+        maxrows = max(len(all_items), len(rest), 1)
+        rh = max(78 * u, min(118 * u,
+                 (avail - 54 * u - maxrows * gapL) / maxrows))
+        cap = int((rh - 14 * u) / (2 * 1.32))
+        fs = min(34 * u, cap)
+
+        def all_fit(size):
+            f = F(int(size), root, True)
+            for arr, a, b in ((all_items, lx0, lx1), (rest, rx0, rx1)):
+                mw = b - (a + 58 * u + 16 * u) - 8 * u
+                for it in arr:
+                    if len(wrap(d, str(it['label']), f, mw)) > 2:
+                        return False
+            return True
+
+        while fs > 26 * u and not all_fit(fs):
+            fs -= 1
+        fs = max(26 * u, fs)
+
+        def land_list(name, arr, a, b, y, tag):
+            T(a, y, name, F(34 * u, root, True), fg, tag + '_head', bold=True)
+            textx = a + 58 * u + 16 * u
+            maxw = b - textx - 8 * u
+            f = F(int(fs), root, True)
+            yy = y + 54 * u
+            for k, it in enumerate(arr):
+                h = rh - 6 * u
+                if cfg.get('stripe', cfg.get('altBands', True)) and k % 2 == 0:
+                    d.rounded_rectangle([a - 8 * u, yy, b, yy + h],
+                                        radius=int(10 * u), fill=co['card'])
+                nx = num_chip(a, yy, h, it['rank'], it['rank'] <= 3,
+                              tag + '_row' + str(k))
+                ls = wrap(d, str(it['label']), f, maxw)[:2]
+                lh = fs * 1.32
+                ty2 = yy + (h - len(ls) * lh) / 2
+                for j, ln in enumerate(ls):
+                    T(nx, ty2 + j * lh, ln, f, fg,
+                      tag + '_text' + str(k) + '_' + str(j), bold=True)
+                boxes.append([a, yy, b, yy + h])
+                yy += rh + gapL
+            section_fs.append({'tag': tag, 'fs': int(fs), 'rows': len(arr),
+                               'lines': [1] * len(arr)})
+            return yy - gapL
+
+        if all_items:
+            land_list('专题 · ' + (sem['topics'][0]['name'] or sem['topics'][0]['id']),
+                      all_items, lx0, lx1, ry0, 'topic')
+        if rest:
+            land_list('其余要闻 · %d 条' % len(rest), rest, rx0, rx1, ry0, 'rest')
+        return fs, rh
+
     if land:
-        # 横版：左卡（报头 + 头条 + 统计条） / 右栏（专题 + 其余要闻）
-        lx0, lx1 = pad, W * .40
-        rx0, rx1 = W * .42, W - pad
-        ly0, ly1 = head_bottom, H - footer_h
-        _box(d, co, lx0, ly0, lx1, ly1, 22 * u, True)
-        hx0, hx1 = lx0 + 34 * u, lx1 - 30 * u
-        yy = _draw_header(hx0, hx1, ly0 + 30 * u, 62)
-        hero = sem['hero']
-        if hero:
-            txt(d, (hx0, yy), '今日头条 · ' + (hero.get('board') or '要闻'),
-                F(25 * u, root, True), acc)
-            yy += 44 * u
-            if hero.get('value'):
-                fa = F(80 * u, root, True)
-                aw = d.textlength(hero.get('arrow') or '', font=fa)
-                if hero.get('arrow'):
-                    txt(d, (hx0, yy + 94 * u), hero['arrow'], fa, acc, True, 'ls')
-                fv = F(106 * u, root, True)
-                txt(d, (hx0 + aw + 18 * u, yy + 94 * u), hero['value'], fv, acc, True, 'ls')
-                vw = d.textlength(hero['value'], font=fv)
-                txt(d, (hx0 + aw + 28 * u + vw, yy + 70 * u), hero.get('unit') or '',
-                    F(26 * u, root), acc)
-                yy += 124 * u
-            f, ls, fs = _fit(d, hero['title'], hx1 - hx0, 92 * u, 31 * u, 18 * u, root, 2, True)
-            yy = _para(d, hx0, yy, ls, f, fg, fs * 1.3)
-            sm = hero.get('brief') or hero.get('summary') or ''
-            if sm:
-                f2, ls2, fs2 = _fit(d, sm, hx1 - hx0, 70 * u, 22 * u, 15 * u, root, 2)
-                yy = _para(d, hx0, yy + 10 * u, ls2, f2, sub, fs2 * 1.4)
-            fy = ly1 - 170 * u
-            _rule(d, co, hx0, hx1, fy - 10 * u)
-            txt(d, (hx0, fy), '来源 · ' + (hero.get('src') or hero.get('org') or '公开信息'),
-                F(20 * u, root), sub)
-            if hero.get('stamp'):
-                txt(d, (hx1, fy), hero['stamp'], F(20 * u, root, True), acc, anchor='ra')
-            if sem['boards']:
-                _draw_stats(hx0, hx1, ly1 - 132 * u, 100 * u)
-            boxes.append([hx0, ly0, hx1, ly1])
-        # 右栏
-        ry = ly0 + 20 * u
-        for t in sem['topics']:
-            ry = _sec_head(ry, t['name'] or t['id'],
-                           '%02d 条 · 合并专题' % len(t['items']), t.get('badge') or '',
-                           x=rx0, x2=rx1)
-            th = min(avail * .34, max(180 * u, 76 * u + len(t['items']) * 108 * u))
-            _box(d, co, rx0, ry, rx1, ry + th, 18 * u)
-            rowh = (th - 24 * u) / max(1, len(t['items']))
-            for k, it in enumerate(t['items']):
-                yy = ry + 12 * u + k * rowh
-                f, ls, fs = _fit(d, it.get('org') or '', 210 * u, rowh * .48,
-                                 25 * u, 16 * u, root, 2, True)
-                _para(d, rx0 + 26 * u, yy, ls, f, fg, fs * 1.3)
-                bx = rx0 + 240 * u
-                bw = rx1 - bx - 26 * u
-                f2, ls2, fs2 = _fit(d, it.get('brief') or it['title'], bw, rowh * .46,
-                                    24 * u, 15 * u, root, 2)
-                _para(d, bx, yy, ls2, f2, fg, fs2 * 1.35)
-                tail = ' · '.join(x for x in (it.get('role'), '来源 · ' + (it.get('src') or ''))
-                                  if x and x != '来源 · ')
-                if tail:
-                    txt(d, (bx, yy + rowh * .56), tail, F(18 * u, root), sub)
-                if k < len(t['items']) - 1:
-                    _rule(d, co, rx0 + 26 * u, rx1 - 26 * u, yy + rowh - 8 * u)
-                boxes.append([rx0 + 26 * u, yy, rx1 - 26 * u, yy + rowh - 8 * u])
-            ry += th + sec_pad
-        if sem['rest']:
-            ry = _sec_head(ry, '其余要闻', '%02d 条' % len(sem['rest']), '',
-                           x=rx0, x2=rx1)
-            rows = len(sem['rest'])
-            colw = rx1 - rx0 - 52 * u
-            numw, textw = 48 * u, colw - 48 * u - 24 * u
-            avail_rest = H - footer_h - ry - 12 * u
-            texts = [it['title'] for it in sem['rest']]
+        land_fs, land_rh = land_band()
 
-            def total_at(fs):
-                f = F(fs, root)
-                return sum(len(wrap(d, t, f, textw)) * fs * 1.30 + 8 * u
-                           for t in texts)
-
-            fs = 30 * u
-            while fs > 20 * u and total_at(fs) + 24 * u > avail_rest:
-                fs -= 1
-            rest_fs = fs
-            rh = min(avail_rest, total_at(fs) + 24 * u)
-            _box(d, co, rx0, ry, rx1, ry + rh, 18 * u)
-            f = F(fs, root)
-            nf2 = F(int(20 * u), root, True)
-            yy = ry + 12 * u
-            for k, t in enumerate(texts):
-                xx = rx0 + 26 * u
-                rk = sem['rest'][k]['rank']
-                strong = rk <= 3
-                d.rounded_rectangle([xx, yy + 2 * u, xx + numw, yy + 2 * u + fs * 1.12],
-                                    radius=int(6 * u), fill=co['acc'] if strong else co['chip'],
-                                    outline=co['line'], width=1)
-                txt(d, (xx + numw / 2, yy + 2 * u + fs * .56), '%02d' % rk, nf2,
-                    (255, 255, 255) if strong else fg, True, 'mm')
-                ls = wrap(d, t, f, textw)
-                _para(d, xx + numw + 14 * u, yy, ls, f, fg, fs * 1.30)
-                h = len(ls) * fs * 1.30
-                if k < rows - 1:
-                    _rule(d, co, xx, rx1 - 26 * u, yy + h + 3 * u)
-                boxes.append([xx, yy, rx1 - 26 * u, yy + h + 3 * u])
-                yy += h + 8 * u
-    else:
-        # 竖版：整块顺序 头条 -> 专题 -> 其余要闻
-        cy = head_bottom
-        hero = sem['hero']
-        if hero:
-            cy = _sec_head(cy, '今日头条', '01 条', '先看这一条')
-            _box(d, co, pad, cy, W - pad, cy + hero_h, 20 * u, True)
-            hx0, hx1 = pad + 34 * u, W - pad - 30 * u
-            yy = cy + 22 * u
-            txt(d, (hx0, yy), (hero.get('board') or '今日头条'), F(27 * u, root, True), acc)
-            yy += 42 * u
-            if hero.get('value'):
-                fa = F(96 * u, root, True)
-                aw = d.textlength(hero.get('arrow') or '', font=fa)
-                if hero.get('arrow'):
-                    txt(d, (hx0, yy + 110 * u), hero['arrow'], fa, acc, True, 'ls')
-                fv = F(126 * u, root, True)
-                txt(d, (hx0 + aw + 20 * u, yy + 110 * u), hero['value'], fv, acc, True, 'ls')
-                vw = d.textlength(hero['value'], font=fv)
-                txt(d, (hx0 + aw + 30 * u + vw, yy + 86 * u), hero.get('unit') or '',
-                    F(30 * u, root), acc)
-                yy += 148 * u
-            f, ls, fs = _fit(d, hero['title'], hx1 - hx0, 100 * u, 36 * u, 20 * u, root, 2, True)
-            yy = _para(d, hx0, yy, ls, f, fg, fs * 1.3)
-            sm = hero.get('brief') or hero.get('summary') or ''
-            if sm:
-                f2, ls2, fs2 = _fit(d, sm, hx1 - hx0, 78 * u, 25 * u, 16 * u, root, 2)
-                yy = _para(d, hx0, yy + 12 * u, ls2, f2, sub, fs2 * 1.4)
-            fy = yy + 24 * u
-            _rule(d, co, hx0, hx1, fy - 12 * u)
-            txt(d, (hx0, fy + 10 * u), '来源 · ' + (hero.get('src') or hero.get('org') or '公开信息'),
-                F(22 * u, root), sub)
-            if hero.get('stamp'):
-                txt(d, (hx1, fy + 10 * u), hero['stamp'], F(22 * u, root, True), acc, anchor='ra')
-            boxes.append([pad, cy, W - pad, cy + hero_h])
-            cy += hero_h + sec_pad
-
-        for t in sem['topics']:
-            cy = _sec_head(cy, t['name'] or t['id'],
-                           '%02d 条 · 合并专题' % len(t['items']), t.get('badge') or '')
-            th = min(avail * .34, max(200 * u, 76 * u + len(t['items']) * 112 * u))
-            _box(d, co, pad, cy, W - pad, cy + th, 20 * u)
-            # 专题名条
-            d.rounded_rectangle([pad + 34 * u, cy + 20 * u, pad + 112 * u, cy + 58 * u],
-                                radius=7 * u, fill=co['chip'])
-            txt(d, (pad + 73 * u, cy + 39 * u), '专题', F(22 * u, root, True), acc, True, 'mm')
-            txt(d, (pad + 126 * u, cy + 30 * u), t['name'] or t['id'], F(28 * u, root, True), fg)
-            top = cy + 76 * u
-            rowh = (cy + th - top - 14 * u) / max(1, len(t['items']))
-            for k, it in enumerate(t['items']):
-                yy = top + k * rowh
-                f, ls, fs = _fit(d, it.get('org') or '', 250 * u, rowh * .5,
-                                 27 * u, 17 * u, root, 2, True)
-                _para(d, pad + 34 * u, yy, ls, f, fg, fs * 1.3)
-                txt(d, (pad + 34 * u, yy + rowh * .52),
-                    it.get('role') or '', F(19 * u, root), sub)
-                bx = pad + 320 * u
-                bw = W - pad - 34 * u - bx
-                f2, ls2, fs2 = _fit(d, it.get('brief') or it['title'], bw, rowh * .52,
-                                    26 * u, 16 * u, root, 2)
-                _para(d, bx, yy, ls2, f2, fg, fs2 * 1.35)
-                txt(d, (bx, yy + rowh * .60), '来源 · ' + (it.get('src') or ''),
-                    F(19 * u, root), sub)
-                if k < len(t['items']) - 1:
-                    _rule(d, co, pad + 34 * u, W - pad - 34 * u, yy + rowh - 8 * u)
-                boxes.append([pad + 34 * u, yy, W - pad - 34 * u, yy + rowh - 8 * u])
-            cy += th + sec_pad
-
-        if sem['rest']:
-            cy = _sec_head(cy, '其余要闻', '%02d 条' % len(sem['rest']), '')
-            rows = len(sem['rest'])
-            colw = W - pad * 2 - 68 * u
-            numw, textw = 52 * u, colw - 52 * u - 26 * u
-            avail_rest = H - footer_h - cy - 10 * u
-            texts = [it['title'] for it in sem['rest']]
-
-            def total_at(fs):
-                f = F(fs, root)
-                return sum(len(wrap(d, t, f, textw)) * fs * 1.30 + 9 * u
-                           for t in texts)
-
-            fs = 32 * u
-            while fs > 22 * u and total_at(fs) + 24 * u > avail_rest:
-                fs -= 1
-            rest_fs = fs
-            rh = min(avail_rest, total_at(fs) + 24 * u)
-            _box(d, co, pad, cy, W - pad, cy + rh, 20 * u)
-            f = F(fs, root)
-            nf2 = F(int(21 * u), root, True)
-            yy = cy + 12 * u
-            for k, t in enumerate(texts):
-                xx = pad + 34 * u
-                rk = sem['rest'][k]['rank']
-                strong = rk <= 3
-                d.rounded_rectangle([xx, yy + 2 * u, xx + numw, yy + 2 * u + fs * 1.12],
-                                    radius=int(6 * u), fill=co['acc'] if strong else co['chip'],
-                                    outline=co['line'], width=1)
-                txt(d, (xx + numw / 2, yy + 2 * u + fs * .56), '%02d' % rk, nf2,
-                    (255, 255, 255) if strong else fg, True, 'mm')
-                ls = wrap(d, t, f, textw)
-                _para(d, xx + numw + 14 * u, yy, ls, f, fg, fs * 1.30)
-                h = len(ls) * fs * 1.30
-                if k < rows - 1:
-                    _rule(d, co, xx, W - pad - 34 * u, yy + h + 3 * u)
-                boxes.append([xx, yy, W - pad - 34 * u, yy + h + 3 * u])
-                yy += h + 9 * u
-            cy += rh
-
-    # 页脚
+    # ------------------------------------------------------------ 页脚
     foot = '%s · %s   %s' % (title, SRC.norm_issue(issue.get('issue_no') or payload.get('issue') or '第01期'),
                              str(issue.get('date') or payload.get('date') or '').replace('-', '.'))
-    txt(d, (pad, H - 42 * u), foot, F(22 * u, root, True), sub)
-    txt(d, (W - pad, H - 42 * u), '1 / 1', F(22 * u, root), sub, anchor='ra')
+    T(pad, H - 42 * u, foot, F(22 * u, root, True), sub, 'footer', bold=True)
+    T(W - pad, H - 42 * u, '1 / 1', F(22 * u, root), sub, 'page', 'ra')
 
-    # 水印：只画底部预留区，不压正文
     if wm.get('on'):
         a = float(wm.get('alpha', .12))
         s = str(wm.get('text', ''))
@@ -1012,34 +1104,43 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
         pos = wm.get('pos', 'bottom_right')
         if pos in ('bottom_right', 'bottom_left'):
             tw = d.textlength(s, font=wf)
-            txt(d, (W - pad - tw if pos == 'bottom_right' else pad, H - 14 * u),
-                s, wf, wcol, anchor='lm')
+            T(W - pad - tw if pos == 'bottom_right' else pad, H - 14 * u,
+              s, wf, wcol, 'watermark', 'lm')
         elif pos == 'center':
-            txt(d, (W / 2, H / 2), s, F(90 * u, root), wcol, anchor='mm')
+            T(W / 2, H / 2, s, F(90 * u, root), wcol, 'watermark', 'mm')
         else:
-            for yy in range(int(120 * u), H, int(220 * u)):
-                for xx in range(int(40 * u), W, int(420 * u)):
-                    txt(d, (xx, yy), s, wf, wcol)
+            for wy in range(int(120 * u), H, int(220 * u)):
+                for wx in range(int(40 * u), W, int(420 * u)):
+                    T(wx, wy, s, wf, wcol, 'watermark_tile' + str(wx) + '_' + str(wy))
 
+    ov = overlaps()
+    used = max([b[3] - b[1] for b in boxes] or [1])
     os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
     im.save(out_path)
-    used = max([b[3] - b[1] for b in boxes] or [1])
     meta = {'type': 'cover', 'tpl': 'semantic', 'semantic': True, 'mode': 'L1',
-            'layout': 'magazine', 'w': W, 'h': H, 'theme': cfg.get('theme'), 'size': size,
+            'layout': 'magazine_band' if land else 'magazine',
+            'w': W, 'h': H, 'theme': cfg.get('theme'), 'size': size,
             'gap': cfg.get('gap'), 'count': n, 'items': n, 'boxes': boxes[:n],
             'used': round(used, 2), 'cell_h': round(used, 2),
-            'avail': round(avail, 2), 'head_bottom': round(head_bottom, 2),
-            'watermark': bool(wm.get('on')), 'cols': 2 if size == 'landscape' else 1,
-            'rows': len(boxes[:n]), 'centered': True, 'top_gap': 0, 'bottom_gap': 0,
-            'whitespace': 0, 'fixed_font': True, 'label_chip': False, 'divider': True,
+            'head_bottom': round(head_bottom, 2),
+            'watermark': bool(wm.get('on')), 'cols': 2 if land else 1,
+            'rows': len(boxes[:n]), 'centered': False, 'top_gap': 0, 'bottom_gap': 0,
+            'whitespace': 0, 'fixed_font': True, 'label_chip': False, 'divider': False,
             'hero_value': (sem['hero'] or {}).get('value', ''),
             'topic_count': sem['topic_count'], 'rest_count': sem['rest_count'],
             'boards': sem['boards'], 'enabled': sem['enabled'],
-            'stats_hidden': not bool(sem['boards']), 'font_fs': round(rest_fs, 2),
-            'hero_h': round(hero_h, 2)}
+            'stats_hidden': True, 'font_fs': int(land_fs) if land else 31,
+            'land_fs': round(land_fs, 2), 'land_rh': round(land_rh, 2),
+            'hero_h': round(sum(h for h, _ in hero_lines(sem['hero'], pad, W - pad, 42)) + 56 * u, 2)
+            if sem['hero'] else 0,
+            'text_boxes': len(tboxes), 'overlap_count': len(ov), 'overlaps': ov[:8],
+            'list_sections': section_fs, 'uniform_font_per_group': True,
+            'uniform_font': len({x['fs'] for x in section_fs}) <= 1 if section_fs else True,
+            'out_of_canvas': len([b for b in tboxes
+                                  if b[0] < -2 or b[1] < -2 or b[2] > W + 2 or b[3] > H + 2]),
+            'compact_layout': True}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
         with open(meta_path, 'w', encoding='utf-8') as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
     return meta
-

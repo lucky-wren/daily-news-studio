@@ -152,7 +152,7 @@ def _cache_path(outdir, text, voice, rate):
 
 def _synth_parallel(root, manifest, cfg, segs, outdir, fetcher, tag):
     """6 路并发 + 本地缓存；任一句失败即整体抛错（stop_and_report）。"""
-    workers = min(12, max(1, int(cfg.get('concurrency', 12))))
+    workers = min(16, max(1, int(cfg.get('concurrency', 16))))
     results = [None] * len(segs)
     jobs = []
     for k, seg in enumerate(segs):
