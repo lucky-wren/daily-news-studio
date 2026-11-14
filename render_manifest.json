@@ -947,7 +947,9 @@
       "alt_bands": true,
       "version": "1.0",
       "export_size": "portrait",
-      "sep": "bands"
+      "sep": "bands",
+      "sep_strength": 1.0,
+      "sep_accent": false
     },
     "video_card": {
       "tpl": "frame_card",

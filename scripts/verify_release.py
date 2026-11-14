@@ -112,7 +112,7 @@ def main():
        "'第一期'" not in open(os.path.join(ROOT, 'scripts', 'source.py'), encoding='utf-8').read()
        and "'第一期'" not in open(os.path.join(ROOT, 'scripts', 'render.py'), encoding='utf-8').read())
     ck('页面状态迁移会升级旧期号',
-       'S.issue.issue_no=normIssue' in html and "STATE_VER='l1-4'" in html
+       'S.issue.issue_no=normIssue' in html and 'const STATE_VER=' in html and 'if(o.__ver!==STATE_VER)' in html
        and "function normIssue(" in html)
     ck('页面期号输入失焦会规范化', "$('issueNo').onchange" in html and 'normIssue($' in html)
     # ---- 报头日期间距：前后端同值且已拉开 ----
@@ -293,9 +293,9 @@ def main():
        and "'centered': True" in rend and 'stats_hidden:true' in html
        and 'baseFs=(land?34:38)' in html)
     ck('等权列表：条目卡片化且三档间距真实生效',
-       "SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (14, 18)}" in rend
+       "SPACING = {'compact': (6, 8), 'standard': (8, 10), 'airy': (11, 14)}" in rend
        and 'card_gap' in rend and "'card_gap': round(gap, 2)" in rend
-       and "SP={compact:[8,10],standard:[11,14],airy:[14,18]}" in html
+       and "SP={compact:[6,8],standard:[8,10],airy:[11,14]}" in html
        and 'card_gap:Math.round(gap)' in html
        and '\n    gap = 10 * u\n' not in rend and 'gap=10*u' not in html)
     ck('杂志版不画统计条（板块为空也不摆 00）',
@@ -394,10 +394,14 @@ def main():
     ck('逐句合成增量复用与持久化缓存',
        'LAST_SIG' in html and 'indexedDB.open' in html
        and 'function cacheGet(' in html and '增量复用' in html)
-    _SEPS = ('bands', 'cards', 'lines', 'bars', 'none')
-    ck('条目分隔五套方案，前后端同源且写进配置',
-       "const CV_SEPS={bands:'隔行底色',cards:'独立卡片',lines:'细线分隔',bars:'左侧色条',none:'纯留白'}" in html
-       and "SEP_MODES = ('bands', 'cards', 'lines', 'bars', 'none')" in rend
+    _SEPS = ('bands', 'cards', 'lines', 'bars', 'none', 'dashes', 'outline', 'accent', 'inset')
+    ck('条目分隔九套方案 + 自由强度/强调色，前后端同源且写进配置',
+       "const CV_SEPS={bands:'隔行底色',cards:'独立卡片',lines:'细线分隔',bars:'左侧色条',none:'纯留白'" in html
+       and "dashes:'虚线分隔',outline:'描边框',accent:'朱红短杠',inset:'内缩双线'" in html
+       and "SEP_MODES = ('bands', 'cards', 'lines', 'bars', 'none', 'dashes', 'outline', 'accent', 'inset')" in rend
+       and 'id="sepStrength"' in html and 'id="sepAccent"' in html
+       and 'sep_strength' in html and 'sep_accent' in html
+       and 'def _sep_paint(d, co, mode, x0, y0, x1, y1, i, strong, u, cfg=None)' in rend
        and 'function sepMode(' in html and 'function sepPaint(' in html
        and 'def _sep_mode(' in rend and 'def _sep_paint(' in rend
        and 'id="cvSeps"' in html and "chips($('cvSeps'),CV_SEPS" in html
@@ -468,10 +472,10 @@ def main():
        and "maxw0 = maxw - (int(120 * u) if tpl == 'headline' else 0)" in rend
        and "mw = maxw0 if (tpl == 'headline' and idx == 0) else maxw" in rend)
     ck('语义编排条目间距三档前后端真实生效',
-       "const RG={compact:6,standard:18,airy:34}" in html
-       and "const GL={compact:2,standard:14,airy:28}" in html
-       and "{'compact': 6, 'standard': 18, 'airy': 34}.get(gap_cfg" in rend
-       and "{'compact': 2, 'standard': 14, 'airy': 28}.get(gap_cfg" in rend
+       "const RG={compact:4,standard:10,airy:18}" in html
+       and "const GL={compact:2,standard:6,airy:14}" in html
+       and "{'compact': 4, 'standard': 10, 'airy': 18}.get(gap_cfg" in rend
+       and "{'compact': 2, 'standard': 6, 'airy': 14}.get(gap_cfg" in rend
        and 'gapL=GL*u' in html and 'gapL = land_gap' in rend
        and "const RH_GAP=34*u,LH_GAP=28*u" in html and 'rh_gap, lh_gap = 34 * u, 28 * u' in rend
        and 'row_gap:Math.round(rowGap)' in html and "'land_gap': round(land_gap, 2)" in rend)
@@ -479,6 +483,22 @@ def main():
        'const VOICE_CN0=' in html and 'function cnVoiceName(' in html
        and 'VOICE_ALIAS=[' in html and "o.textContent=cnVoiceName(o.value)" in html
        and "'<option value="'+esc(id)+'">'+esc(nm)+'</option>'" not in html)
+    ck('数据入口两个 sheet 各占一行，不再 flex-wrap 错位',
+       '<label class="lb">文稿 sheet</label><input type="text" id="sheetScript"' in html
+       and '<label class="lb">封面 sheet</label><input type="text" id="sheetCover"' in html
+       and 'flex:0 0 60px' not in html)
+    ck('点选项不跳回面板顶部（仅切 tab 才复位滚动）',
+       "const _pb=$('propsBody'),_keep=_pb?_pb.scrollTop:0" in html
+       and "if(_pb&&_pb.scrollTop!==_keep)_pb.scrollTop=_keep" in html
+       and "if(_t!==id){pb.setAttribute('data-tab',id);pb.scrollTop=0;}" in html)
+    ck('间距档位整体收紧：极紧凑 / 紧凑 / 标准',
+       "const GAPS={compact:'极紧凑',standard:'紧凑',airy:'标准'}" in html
+       and "'compact': 8, 'standard': 16, 'airy': 28" in rend)
+    ck('摘要分段换行且颜色提亮（页面与服务端同源）',
+       'function splitSummary(' in html and 'summary_paragraphs:sParas.length' in html
+       and 'mixHex(T.sub,T.txt,.55)' in html
+       and 'def _summary_paras(' in rend and 'sum_col = mix(sub, fg, .55)' in rend
+       and "'summary_color_lift': True" in rend)
     ck('stillimage 调优', "'-tune', 'stillimage'" in prod)
     ck('音频 64k 单声道', "'-b:a', '64k'" in prod and "'-ac', '1'" in prod)
 

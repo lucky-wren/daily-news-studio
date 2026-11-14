@@ -191,10 +191,10 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     bottom_pad = int(58 * u)
     avail = H - head_bottom - bottom_pad
     colw = (W - 2 * pad - (cols - 1) * int(30 * u)) / cols
-    fill = {'compact': .99, 'standard': .97, 'airy': .95}.get(gapmode, .95)
+    fill = {'compact': .99, 'standard': .98, 'airy': .96}.get(gapmode, .96)
     # 行距由留白档位给定上限，条数多时自动收紧但不撑满；
     # 整组资讯作为一个块在内容区上下居中，字号不因条数少而放大。
-    wanted_gap = int({'compact': 12, 'standard': 28, 'airy': 46}.get(gapmode, 46) * u)
+    wanted_gap = int({'compact': 8, 'standard': 16, 'airy': 28}.get(gapmode, 28) * u)
     min_gap = max(2, int(3 * u))
     cap = avail * (.99 if rows >= 8 else fill) / rows
 
@@ -254,7 +254,7 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
 
         # 条目分隔：五套方案统一入口，与页面 sepPaint 同源
         _sep_paint(d, {'bg': base, 'dark': dark, 'acc': acc, 'line': line_c},
-                   sep_mode, x0, y0 + 2 * u, x1, y1 - 2 * u, r, i < 3, u)
+                   sep_mode, x0, y0 + 2 * u, x1, y1 - 2 * u, r, i < 3, u, cfg)
         no_decor = (sep_mode == 'none')
         # 结构差异：榜单卡片=逐行圆角卡；极简列表=顶部细线+纯文字序号；报头重点=首条头条块
         if tpl == 'rank':
@@ -344,6 +344,20 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
 
 
 # ------------------------------------------------------------------ 视频卡片帧
+def _summary_paras(d, text, font, maxw):
+    """按句末标点分段，段内按宽度折行；与页面 splitSummary 同源。"""
+    parts, buf = [], ''
+    for ch in str(text or ''):
+        buf += ch
+        if ch in '。！？；!?;':
+            parts.append(buf); buf = ''
+    if buf:
+        parts.append(buf)
+    if not parts:
+        parts = ['']
+    return [wrap(d, p, font, maxw) for p in parts]
+
+
 def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     theme = THEMES.get(cfg.get('theme', 'deep_blue'), THEMES['deep_blue'])
     tpl = cfg.get('tpl', 'frame_card')
@@ -366,7 +380,10 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     ttl = card['title'] if rv >= 1 else card['title'][:max(0, int(round(len(card['title']) * rv)))]
     smy = card['summary'] if rv >= 1 else card['summary'][:max(0, int(round(len(card['summary']) * rv)))]
     tlines = wrap(d, ttl, tf, maxw)
-    slines = wrap(d, smy, sf, maxw)
+    sum_paras = _summary_paras(d, smy, sf, maxw)
+    slines = [ln for p in sum_paras for ln in p]
+    para_gap = int(sum_fs * .6)
+    sum_col = mix(sub, fg, .55)   # 提高摘要对比度，不再是一整片浅灰
 
     src_fs = int(30 * u)
     # 「来源：平台 · 完整地址」拼成一行，不单独占一行；用柔和副色，不用强调红抢风头
@@ -380,7 +397,7 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
 
     def _block_h(sl, fs):
         return (len(tlines) * int(title_fs * 1.32) + int(56 * u)
-                + len(slines) * int(sum_fs * 1.5) + int(48 * u)
+                + len(slines) * int(sum_fs * 1.5) + para_gap * max(0, len(sum_paras) - 1) + int(48 * u)
                 + sum(len(ls) * int(fs * 1.40) + int(8 * u) for ls in sl))
 
     src_lines = _src_lines(src_fs)
@@ -410,8 +427,11 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     for ln in tlines:
         txt(d, (pad, y), ln, tf, fg, True); y += int(title_fs * 1.32)
     y += int(56 * u)   # 标题与摘要拉开
-    for ln in slines:
-        txt(d, (pad, y), ln, sf, sub); y += int(sum_fs * 1.5)
+    for pi, para in enumerate(sum_paras):
+        for ln in para:
+            txt(d, (pad, y), ln, sf, sum_col); y += int(sum_fs * 1.5)
+        if pi < len(sum_paras) - 1:
+            y += para_gap
     y += int(48 * u)
     # 每条来源一行「来源：…」；整体用柔和副色，不与标题争视觉重点
     for lns in src_lines:
@@ -424,6 +444,8 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     meta = {'type': 'card', 'index': card['index'], 'w': W, 'h': H, 'tpl': tpl,
             'reveal': rv, 'block_bottom': y, 'title_lines': len(tlines), 'summary_lines': len(slines),
             'sources': len(src_lines), 'src_fs': src_fs,
+            'summary_paragraphs': len(sum_paras), 'paragraph_gap': para_gap,
+            'summary_color_lift': True,
             'src_label': '来源：', 'src_red': False,
             'overflow': y > H - int(40 * u)}
     if meta_path:
@@ -435,7 +457,7 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
 
 # ================================================================== L1 语义编排封面
 # 条目分隔五套方案：与页面 sepPaint 一一对应，cfg.sep 写进配置导出。
-SEP_MODES = ('bands', 'cards', 'lines', 'bars', 'none')
+SEP_MODES = ('bands', 'cards', 'lines', 'bars', 'none', 'dashes', 'outline', 'accent', 'inset')
 
 
 def _sep_mode(cfg):
@@ -445,22 +467,42 @@ def _sep_mode(cfg):
     return 'bands' if cfg.get('alt_bands', True) else 'none'
 
 
-def _sep_paint(d, co, mode, x0, y0, x1, y1, i, strong, u):
+def _sep_paint(d, co, mode, x0, y0, x1, y1, i, strong, u, cfg=None):
+    """条目分隔九套方案 + 自由强度/强调色；与页面 sepPaint 一一对应。"""
     ink = (255, 255, 255) if co['dark'] else (0, 0, 0)
-    stripe = mix(co['bg'], ink, .075)
-    line_c = mix(co['bg'], ink, .28)
+    cfg = cfg or {}
+    st = max(.4, min(2.0, float(cfg.get('sep_strength', co.get('strength', 1.0)) or 1.0)))
+    accent_on = bool(cfg.get('sep_accent', co.get('accent_on', False)))
+    stripe = mix(co['bg'], ink, min(.30, .075 * st))
+    line_c = co['acc'] if accent_on else mix(co['bg'], ink, min(.55, .28 * st))
+    lw = max(1, int(2 * u * st))
+    rad = max(0, int(10 * u * st))
+    yb = y1 - max(2, int(2 * u))
     if mode == 'bands':
         if i % 2 == 1:
-            d.rounded_rectangle([x0, y0, x1, y1], radius=int(10 * u), fill=stripe)
+            d.rounded_rectangle([x0, y0, x1, y1], radius=rad, fill=stripe)
     elif mode == 'cards':
-        d.rounded_rectangle([x0, y0, x1, y1], radius=int(10 * u), fill=stripe)
-        d.rounded_rectangle([x0, y0, x1, y1], radius=int(10 * u),
-                            outline=line_c, width=1)
+        d.rounded_rectangle([x0, y0, x1, y1], radius=rad, fill=stripe)
+        d.rounded_rectangle([x0, y0, x1, y1], radius=rad, outline=line_c, width=lw)
     elif mode == 'lines':
-        d.line([x0, y1 - max(2, int(2 * u)), x1, y1 - max(2, int(2 * u))],
-               fill=line_c, width=max(2, int(2 * u)))
+        d.line([x0, yb, x1, yb], fill=line_c, width=lw)
     elif mode == 'bars':
-        d.rectangle([x0, y0, x0 + 10 * u, y1], fill=co['acc'] if strong else line_c)
+        d.rectangle([x0, y0, x0 + 10 * u * st, y1], fill=co['acc'] if strong else line_c)
+    elif mode == 'dashes':
+        seg, gapx = max(6, int(14 * u * st)), max(4, int(9 * u))
+        xx = x0
+        while xx < x1:
+            d.line([xx, yb, min(xx + seg, x1), yb], fill=line_c, width=lw)
+            xx += seg + gapx
+    elif mode == 'outline':
+        d.rounded_rectangle([x0, y0, x1, y1], radius=rad, outline=line_c, width=lw)
+    elif mode == 'accent':
+        d.rectangle([x0, y0, x0 + min((x1 - x0) * .18, 110 * u * st),
+                     y0 + max(2, lw * 2)], fill=co['acc'])
+    elif mode == 'inset':
+        ix = int(24 * u * st)
+        d.line([x0 + ix, y0 + 2 * u, x1 - ix, y0 + 2 * u], fill=line_c, width=1)
+        d.line([x0 + ix, yb, x1 - ix, yb], fill=line_c, width=1)
 
 
 def _sem_palette(theme):
@@ -621,7 +663,7 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
     innerw = colw - tx_off - 24 * u
     # 留白三档：只改「卡片内上下留白」与「卡片之间的真空隙」，字号固定不放大。
     # 剩余高度不摊进卡间距，全部留给整组上下居中。
-    SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (14, 18)}
+    SPACING = {'compact': (6, 8), 'standard': (8, 10), 'airy': (11, 14)}
     pad_v, gap = SPACING.get(cfg.get('gap', 'airy'), SPACING['airy'])
     pad_v, gap = pad_v * u, gap * u
     min_pad_v, min_gap = 6 * u, 8 * u
@@ -672,7 +714,7 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
         y0 = top + row * row_h
         y1 = y0 + card_h
         _sep_paint(d, dict(co, line=strong_line), _sep_mode(cfg),
-                   x, y0, x + colw, y1, i, i < 3, u)
+                   x, y0, x + colw, y1, i, i < 3, u, cfg)
         bx = x + 34 * u
         by = y0 + (card_h - numw) / 2
         strong = i < 3
@@ -768,8 +810,8 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
     land = size == 'landscape'
     footer_h = 62 * u
     gap_cfg = cfg.get('gap', 'airy')
-    row_gap = {'compact': 6, 'standard': 18, 'airy': 34}.get(gap_cfg, 18) * u
-    land_gap = {'compact': 2, 'standard': 14, 'airy': 28}.get(gap_cfg, 14) * u
+    row_gap = {'compact': 4, 'standard': 10, 'airy': 18}.get(gap_cfg, 10) * u
+    land_gap = {'compact': 2, 'standard': 6, 'airy': 14}.get(gap_cfg, 6) * u
     # 行高按最大档收敛：三档差全部留给条目间真实空隙，不被 rowh 反推吃掉
     rh_gap, lh_gap = 34 * u, 28 * u
     sep_mode = _sep_mode(cfg)
@@ -920,7 +962,7 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             def row(y, f=f, ls=ls, k=k, it=it, rh=rh, tag=tag, ty=ty, lh=lh):
                 boxes.append([x0, y, x1, y + rh - 6 * u])
                 _sep_paint(d, co, sep_mode, x0 - 8 * u, y, x1, y + rh - 6 * u,
-                           k, it['rank'] <= 3, u)
+                           k, it['rank'] <= 3, u, cfg)
                 nx = num_chip(x0, y, rh - 6 * u, it['rank'], it['rank'] <= 3,
                               tag + '_row' + str(k))
                 for j, ln in enumerate(ls):
@@ -1098,7 +1140,7 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             for k, it in enumerate(arr):
                 h = rh - 6 * u
                 _sep_paint(d, co, sep_mode, a - 8 * u, yy, b, yy + h,
-                           k, it['rank'] <= 3, u)
+                           k, it['rank'] <= 3, u, cfg)
                 nx = num_chip(a, yy, h, it['rank'], it['rank'] <= 3,
                               tag + '_row' + str(k))
                 ls = wrap(d, str(it['label']), f, maxw)[:2]
