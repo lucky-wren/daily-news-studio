@@ -194,7 +194,7 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     fill = {'compact': .99, 'standard': .98, 'airy': .96}.get(gapmode, .96)
     # 行距由留白档位给定上限，条数多时自动收紧但不撑满；
     # 整组资讯作为一个块在内容区上下居中，字号不因条数少而放大。
-    wanted_gap = int({'compact': 8, 'standard': 16, 'airy': 28}.get(gapmode, 28) * u)
+    wanted_gap = int({'compact': 16, 'standard': 28, 'airy': 40}.get(gapmode, 40) * u)
     min_gap = max(2, int(3 * u))
     cap = avail * (.99 if rows >= 8 else fill) / rows
 
@@ -380,12 +380,9 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     ttl = card['title'] if rv >= 1 else card['title'][:max(0, int(round(len(card['title']) * rv)))]
     smy = card['summary'] if rv >= 1 else card['summary'][:max(0, int(round(len(card['summary']) * rv)))]
     tlines = wrap(d, ttl, tf, maxw)
-    sum_paras = _summary_paras(d, smy, sf, maxw)
-    slines = [ln for p in sum_paras for ln in p]
-    para_gap = int(sum_fs * .6)
-    sum_col = mix(sub, fg, .55)   # 提高摘要对比度，不再是一整片浅灰
-
+    # 摘要与来源共享可用高度：分段后重排，来源首行前留固定净空隙，绝不压字或溢出。
     src_fs = int(30 * u)
+    src_gap = int((88 if size == 'landscape' else 64) * u)
     # 「来源：平台 · 完整地址」拼成一行，不单独占一行；用柔和副色，不用强调红抢风头
     src_texts = ['来源：' + ' · '.join(x for x in
                  (str(s.get('platform') or ''), str(s.get('url') or '')) if x)
@@ -395,18 +392,30 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
         rf = F(fs, root)
         return [wrap(d, t, rf, maxw - int(8 * u)) for t in src_texts]
 
-    def _block_h(sl, fs):
-        return (len(tlines) * int(title_fs * 1.32) + int(56 * u)
-                + len(slines) * int(sum_fs * 1.5) + para_gap * max(0, len(sum_paras) - 1) + int(48 * u)
-                + sum(len(ls) * int(fs * 1.40) + int(8 * u) for ls in sl))
+    def _layout(sfs, rfs):
+        """按给定摘要/来源字号重排：返回分段、行数、段距、来源行、整块高度。"""
+        sfont = F(sfs, root)
+        paras = _summary_paras(d, smy, sfont, maxw)
+        lines = [ln for p in paras for ln in p]
+        pgap = int(sfs * .6)
+        sl = _src_lines(rfs)
+        h = (len(tlines) * int(title_fs * 1.32) + int(56 * u)
+             + len(lines) * int(sfs * 1.5) + pgap * max(0, len(paras) - 1)
+             + src_gap
+             + sum(len(ls) * int(rfs * 1.40) + int(8 * u) for ls in sl))
+        return paras, lines, pgap, sl, h
 
-    src_lines = _src_lines(src_fs)
-    # 来源必须完整且不越出画面：字号自动收敛，仍放不下就报错而不是截断
-    while src_fs > int(16 * u) and _block_h(src_lines, src_fs) > H - int(220 * u):
+    limit = H - int(220 * u)
+    sum_paras, slines, para_gap, src_lines, block_h = _layout(sum_fs, src_fs)
+    while src_fs > int(16 * u) and block_h > limit:
         src_fs -= int(1 * u)
-        src_lines = _src_lines(src_fs)
+        sum_paras, slines, para_gap, src_lines, block_h = _layout(sum_fs, src_fs)
+    while sum_fs > int(24 * u) and block_h > limit:
+        sum_fs -= int(1 * u)
+        sum_paras, slines, para_gap, src_lines, block_h = _layout(sum_fs, src_fs)
+    sf = F(sum_fs, root)
     rf = F(src_fs, root)
-    block_h = _block_h(src_lines, src_fs)
+    sum_col = mix(sub, fg, .55)   # 提高摘要对比度，不再是一整片浅灰
     y = max(int(110 * u), (H - block_h) / 2)  # 垂直居中
     header_y = int(56 * u)
 
@@ -432,8 +441,10 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
             txt(d, (pad, y), ln, sf, sum_col); y += int(sum_fs * 1.5)
         if pi < len(sum_paras) - 1:
             y += para_gap
-    y += int(48 * u)
-    # 每条来源一行「来源：…」；整体用柔和副色，不与标题争视觉重点
+    summary_bottom = y
+    y += src_gap
+    src_top = y
+    # 每条来源一行「来源：…」；无底色、无分隔线，柔和副色不与标题争视觉重点
     for lns in src_lines:
         for ln in lns:
             txt(d, (pad, y), ln, rf, sub); y += int(src_fs * 1.40)
@@ -447,6 +458,8 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
             'summary_paragraphs': len(sum_paras), 'paragraph_gap': para_gap,
             'summary_color_lift': True,
             'src_label': '来源：', 'src_red': False,
+            'src_gap': src_gap, 'src_top': round(src_top), 'summary_bottom': round(summary_bottom),
+            'src_band': False,
             'overflow': y > H - int(40 * u)}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
@@ -663,7 +676,7 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
     innerw = colw - tx_off - 24 * u
     # 留白三档：只改「卡片内上下留白」与「卡片之间的真空隙」，字号固定不放大。
     # 剩余高度不摊进卡间距，全部留给整组上下居中。
-    SPACING = {'compact': (6, 8), 'standard': (8, 10), 'airy': (11, 14)}
+    SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (16, 20)}
     pad_v, gap = SPACING.get(cfg.get('gap', 'airy'), SPACING['airy'])
     pad_v, gap = pad_v * u, gap * u
     min_pad_v, min_gap = 6 * u, 8 * u
@@ -810,8 +823,8 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
     land = size == 'landscape'
     footer_h = 62 * u
     gap_cfg = cfg.get('gap', 'airy')
-    row_gap = {'compact': 4, 'standard': 10, 'airy': 18}.get(gap_cfg, 10) * u
-    land_gap = {'compact': 2, 'standard': 6, 'airy': 14}.get(gap_cfg, 6) * u
+    row_gap = {'compact': 18, 'standard': 34, 'airy': 50}.get(gap_cfg, 34) * u
+    land_gap = {'compact': 8, 'standard': 15, 'airy': 22}.get(gap_cfg, 15) * u
     # 行高按最大档收敛：三档差全部留给条目间真实空隙，不被 rowh 反推吃掉
     rh_gap, lh_gap = 34 * u, 28 * u
     sep_mode = _sep_mode(cfg)

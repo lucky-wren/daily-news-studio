@@ -293,9 +293,9 @@ def main():
        and "'centered': True" in rend and 'stats_hidden:true' in html
        and 'baseFs=(land?34:38)' in html)
     ck('等权列表：条目卡片化且三档间距真实生效',
-       "SPACING = {'compact': (6, 8), 'standard': (8, 10), 'airy': (11, 14)}" in rend
+       "SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (16, 20)}" in rend
        and 'card_gap' in rend and "'card_gap': round(gap, 2)" in rend
-       and "SP={compact:[6,8],standard:[8,10],airy:[11,14]}" in html
+       and "SP={compact:[8,10],standard:[11,14],airy:[16,20]}" in html
        and 'card_gap:Math.round(gap)' in html
        and '\n    gap = 10 * u\n' not in rend and 'gap=10*u' not in html)
     ck('杂志版不画统计条（板块为空也不摆 00）',
@@ -437,6 +437,14 @@ def main():
        and "txt(d, (pad, y), '来源'," not in rend
        and "'src_red': False" in rend and 'src_red:false' in html
        and "'来源 · '+s.platform" not in html and "'来源 · ' + platform" not in rend)
+    ck('卡片来源无底色、摘要与来源留固定净空隙且横版更大',
+       'const SRC_GAP=(land?88:64)*u' in html
+       and 'src_gap:Math.round(srcTop-summaryBottom)' in html
+       and 'src_band:false' in html
+       and 'rr(ctx,boxX,bandTop' not in html
+       and 'src_gap = int((88 if size ==' in rend
+       and "'src_band': False" in rend
+       and 'src_top' in rend and 'summary_bottom' in rend)
     ck('取消后可立即再合成、断点续合',
        'let voiceBusy=false' in html and 'voiceRun++' in html and '断点' in html
        and 'Promise.all(missing.map' in html and 'Promise.all(raw.map' in html)
@@ -471,11 +479,11 @@ def main():
        and "(S.cover.tpl==='headline'&&i===0)?maxW0:maxW" in html
        and "maxw0 = maxw - (int(120 * u) if tpl == 'headline' else 0)" in rend
        and "mw = maxw0 if (tpl == 'headline' and idx == 0) else maxw" in rend)
-    ck('语义编排条目间距三档前后端真实生效',
-       "const RG={compact:4,standard:10,airy:18}" in html
-       and "const GL={compact:2,standard:6,airy:14}" in html
-       and "{'compact': 4, 'standard': 10, 'airy': 18}.get(gap_cfg" in rend
-       and "{'compact': 2, 'standard': 6, 'airy': 14}.get(gap_cfg" in rend
+    ck('语义编排条目间距三档前后端真实生效（紧凑=旧标准/标准=旧宽松/宽松更大）',
+       "const RG={compact:18,standard:34,airy:50}" in html
+       and "const GL={compact:8,standard:15,airy:22}" in html
+       and "{'compact': 18, 'standard': 34, 'airy': 50}.get(gap_cfg" in rend
+       and "{'compact': 8, 'standard': 15, 'airy': 22}.get(gap_cfg" in rend
        and 'gapL=GL*u' in html and 'gapL = land_gap' in rend
        and "const RH_GAP=34*u,LH_GAP=28*u" in html and 'rh_gap, lh_gap = 34 * u, 28 * u' in rend
        and 'row_gap:Math.round(rowGap)' in html and "'land_gap': round(land_gap, 2)" in rend)
@@ -491,9 +499,12 @@ def main():
        "const _pb=$('propsBody'),_keep=_pb?_pb.scrollTop:0" in html
        and "if(_pb&&_pb.scrollTop!==_keep)_pb.scrollTop=_keep" in html
        and "if(_t!==id){pb.setAttribute('data-tab',id);pb.scrollTop=0;}" in html)
-    ck('间距档位整体收紧：极紧凑 / 紧凑 / 标准',
-       "const GAPS={compact:'极紧凑',standard:'紧凑',airy:'标准'}" in html
-       and "'compact': 8, 'standard': 16, 'airy': 28" in rend)
+    ck('间距档位按旧档位整体放大一档：紧凑=旧标准/标准=旧宽松/宽松更大',
+       "const GAPS={compact:'紧凑',standard:'标准',airy:'宽松'}" in html
+       and '紧凑 / 标准 / 宽松' in html
+       and "'compact': 16, 'standard': 28, 'airy': 40" in rend
+       and "const SP={compact:[8,10],standard:[11,14],airy:[16,20]}" in html
+       and "SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (16, 20)}" in rend)
     ck('摘要分段换行且颜色提亮（页面与服务端同源）',
        'function splitSummary(' in html and 'summary_paragraphs:sParas.length' in html
        and 'mixHex(T.sub,T.txt,.55)' in html

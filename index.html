@@ -309,7 +309,7 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
    <div class="row"><span class="mini" id="semHint">语义编排：素材来自表格可选列</span></div>
    <div class="row"><label class="lb">尺寸</label><div class="chips" id="cvSizes"></div></div>
    <div class="row"><label class="lb">条目间距</label><div class="chips" id="cvGaps"></div>
-    <span class="mini">极紧凑 / 紧凑 / 标准，真实作用于语义编排列表</span></div>
+    <span class="mini">紧凑 / 标准 / 宽松，真实作用于语义编排列表</span></div>
    <div class="row"><label class="lb">条目分隔</label><div class="chips" id="cvSeps"></div>
     <span class="mini">九套方案同时作用于页面预览与服务端出片</span></div>
    <div class="row"><label class="lb">分隔强度</label><input type="range" id="sepStrength" min="40" max="200" value="100" style="width:150px">
@@ -339,7 +339,7 @@ body.pv-player .stage .timeline,body.pv-player .stage .pbar,body.pv-player .stag
    <div class="row"><label class="lb">位置</label><select id="wmPos"><option value="bottom_right">右下角（底部预留区）</option><option value="bottom_left">左下角（底部预留区）</option><option value="center">居中斜置大字（内容之下）</option><option value="tile">平铺底纹（内容之下）</option></select>
     <label class="lb" style="width:56px;flex:0 0 56px">透明度</label><input type="range" id="wmAlpha" min="5" max="40" value="12"><span class="mini" id="wmAlphaV">0.12</span></div>
    <div class="row"><button id="btnExportCoverCfg">⬇ 导出 cover_theme.json</button><button id="btnExportCoverPng">⬇ 导出封面 PNG</button></div>
-   <p class="hint">封面<b>按封面 sheet 取前 N 条</b>，条数可设置（1—10）；资讯整组上下居中，字号固定不放大，条数越少上下留白越大。条目间距极紧凑 / 紧凑 / 标准三档真实作用于语义编排列表；条目分隔九套方案（含虚线 / 描边框 / 朱红短杠 / 内缩双线）并支持强度与强调色自由设置，前后端同源。横版前一半左列、后一半右列；显示序号 / 标题，不显示分类标签，不含摘要、来源、地址。单一朱红强调色，无网格 / 渐变 / 火焰 / 沸热新。</p>
+   <p class="hint">封面<b>按封面 sheet 取前 N 条</b>，条数可设置（1—10）；资讯整组上下居中，字号固定不放大，条数越少上下留白越大。条目间距紧凑 / 标准 / 宽松三档真实作用于语义编排列表；条目分隔九套方案（含虚线 / 描边框 / 朱红短杠 / 内缩双线）并支持强度与强调色自由设置，前后端同源。横版前一半左列、后一半右列；显示序号 / 标题，不显示分类标签，不含摘要、来源、地址。单一朱红强调色，无网格 / 渐变 / 火焰 / 沸热新。</p>
   </div></section>
 
   <!-- 4 视频卡片 -->
@@ -534,7 +534,7 @@ const THEMES={
 const CV_TPLS={rank:'榜单卡片',list:'极简列表',headline:'报头重点',semantic:'语义编排'};
 const CD_TPLS={frame_card:'标准卡',frame_minimal:'极简列表',frame_headline:'报头重点'};
 const SIZES={portrait:{n:'竖版 9:16',w:1080,h:1920},landscape:{n:'横版 16:9',w:1920,h:1080}};
-const GAPS={compact:'极紧凑',standard:'紧凑',airy:'标准'};
+const GAPS={compact:'紧凑',standard:'标准',airy:'宽松'};
 /* 提前定义：状态迁移（localStorage）在脚本前段就会读它，放后面会 TDZ 抛错被 catch 吞掉 */
 const CV_SEPS={bands:'隔行底色',cards:'独立卡片',lines:'细线分隔',bars:'左侧色条',none:'纯留白',
  dashes:'虚线分隔',outline:'描边框',accent:'朱红短杠',inset:'内缩双线'};
@@ -961,7 +961,7 @@ function drawEqualCover(ctx,co,T,W,H,u,sem,pad,footerH,land,showT,showD,showI,ti
  const colW=(W-pad*2-(cols-1)*colGap)/cols;
  const numW=64*u,txOff=34*u+numW+20*u,innerW=colW-txOff-24*u;
  /* 留白三档真实生效：卡内上下留白 + 卡片之间的真空隙；字号固定不放大。 */
- const SP={compact:[6,8],standard:[8,10],airy:[11,14]};
+ const SP={compact:[8,10],standard:[11,14],airy:[16,20]};
  let sp=SP[S.cover.gap]||SP.airy,padV=sp[0]*u,gap=sp[1]*u;
  const minPadV=6*u,minGap=8*u;
  const baseFs=(land?34:38)*u,minFs=30*u;
@@ -1035,8 +1035,8 @@ function drawSemanticCover(){
   drawEqualCover(ctx,co,T,W,H,u,sem,pad,footerH,land,showT,showD,showI,title,dateCn,issueNo);
   return;
  }
- const RG={compact:4,standard:10,airy:18}[S.cover.gap]||10,rowGap=RG*u;
- const GL={compact:2,standard:6,airy:14}[S.cover.gap]||6,gapL=GL*u;
+ const RG={compact:18,standard:34,airy:50}[S.cover.gap]||34,rowGap=RG*u;
+ const GL={compact:8,standard:15,airy:22}[S.cover.gap]||15,gapL=GL*u;
  /* 行高按最大档收敛，档位差全部留给条目之间的真实空隙，不被 rh 吃掉。 */
  const RH_GAP=34*u,LH_GAP=28*u;
  const TB=[];
@@ -1305,7 +1305,7 @@ function drawCover(){
  const fill=S.cover.gap==='compact'?.99:S.cover.gap==='standard'?.97:.95;
  /* 行距由留白档位给定上限，条数多时自动收紧但不撑满；
     整组资讯作为一个块在内容区上下居中，字号不因条数少而放大。 */
- const wantedGap=(S.cover.gap==='compact'?12:S.cover.gap==='standard'?28:46)*u,minGap=3*u;
+ const wantedGap=(S.cover.gap==='compact'?28:S.cover.gap==='standard'?46:64)*u,minGap=3*u;
  const cap=avail*(rows>=8?.99:fill)/rows;
  const chipBg=T.dark?'#dbe8f8':'#16283f';
  const softInk=T.dark?'#101f33':'#ffffff';
@@ -1411,20 +1411,29 @@ function drawCard(canvas,idx,forPlayer,reveal){
  }
  const ix=boxX+boxW*.045,iw=boxW*.91;
  const sy=boxY+boxH*.79;
+ /* 来源区：不加底色、不加分隔线；摘要末行到来源首行留固定真空隙，横版更大，绝不压字。 */
+ const SRC_GAP=(land?88:64)*u,srcTop=sy+8*u,bandBot=boxY+boxH*.985;
  const tsz=Math.round((tpl==='frame_headline'?70:(land?60:70))*u),ssz=Math.round((land?40:46)*u);
  const tf=fitBlock(ctx,c.title,iw,3,tsz,'800',1.30,boxH*.27);
  const sf=fitBlock(ctx,c.summary,iw,9,ssz,'400',1.50,boxH*.56);
  const rv=(typeof reveal==='number')?reveal:1;
  const tShow=rv<1?revealFit(ctx,tf,c.title,rv,iw,3):tf;
- const sSize=sf.size,PG=Math.round(sSize*.6);
  const sSum=(rv<1)?String(c.summary).slice(0,Math.max(0,Math.ceil(String(c.summary).length*rv))):String(c.summary);
- ctx.font='400 '+Math.round(sSize)+'px "WenQuanYi Micro Hei",sans-serif';
- const sParas=splitSummary(ctx,sSum,iw,9).paras;
- const sLines=sParas.reduce((a,p)=>a+p.length,0);
  const noH=22*u*1.7,tH=tShow.lines.length*tShow.size*1.30;
- const sH=sLines*sSize*1.50+Math.max(0,sParas.length-1)*PG;
+ const availTop=boxY+boxH*.035,availBot=srcTop-SRC_GAP;
+ /* 摘要按可用高度收敛字号：分段后重新测量，保证末行离来源至少 SRC_GAP。 */
+ let sSize=sf.size,PG=Math.round(sSize*.6),sParas=[],sLines=0,sH=0;
+ const measureS=size=>{
+  ctx.font='400 '+Math.round(size)+'px "WenQuanYi Micro Hei",sans-serif';
+  const p=splitSummary(ctx,sSum,iw,9).paras,ln=p.reduce((a,x)=>a+x.length,0);
+  return {p:p,lines:ln,h:ln*size*1.50+Math.max(0,p.length-1)*Math.round(size*.6)};
+ };
+ let sm=measureS(sSize);
+ while(sSize>Math.max(12,Math.round(20*u))&&(noH+tf.size*.5+tH+tf.size*.5+sm.h)>(availBot-availTop)){
+  sSize-=1;sm=measureS(sSize);
+ }
+ sParas=sm.p;PG=Math.round(sSize*.6);sH=sm.h;sLines=sm.lines;
  const contentH=noH+tf.size*.5+tH+tf.size*.5+sH;
- const availTop=boxY+boxH*.035,availBot=sy-50*u;
  let y=availTop+Math.max(0,(availBot-availTop-contentH)/2);
  ctx.fillStyle=T.sub;ctx.font=Math.round(21*u)+'px "WenQuanYi Micro Hei",sans-serif';
  ctx.fillText('NO.'+String(idx+1).padStart(2,'0')+'  ·  '+(c.label||''),ix,y+21*u);y+=noH;
@@ -1434,32 +1443,27 @@ function drawCard(canvas,idx,forPlayer,reveal){
  /* 摘要：分段换行，段间留白；颜色向主文字靠拢，不再是一整片浅灰 */
  ctx.fillStyle=mixHex(T.sub,T.txt,.55);ctx.font='400 '+Math.round(sSize)+'px "WenQuanYi Micro Hei",sans-serif';
  sParas.forEach((p,pi)=>{p.forEach(ln=>{ctx.fillText(ln,ix,y+sSize);y+=sSize*1.50});if(pi<sParas.length-1)y+=PG;});
- // 来源带：底色 + 自动缩字号 + 平台/完整地址都在画面内
- const bandTop=sy-12*u,bandBot=boxY+boxH*.985,u0=Math.max(12,Math.round(14*u));
- ctx.fillStyle=mixHex(T.bg,T.dark?'#ffffff':'#000000',.055);
- rr(ctx,boxX,bandTop,boxW,bandBot-bandTop,10*u);ctx.fill();
- ctx.strokeStyle=T.line;ctx.lineWidth=1;ctx.beginPath();
- ctx.moveTo(ix,bandTop+14*u);ctx.lineTo(ix+iw,bandTop+W*.014);ctx.stroke();
- /* 来源：一行「来源：平台 · 完整地址」，不单独占一行；柔和副色，不用强调红抢风头。 */
+ const summaryBottom=y;
+ /* 来源：一行「来源：平台 · 完整地址」，无底色、无分隔线，柔和副色。 */
  const srcTexts=(c.sources||[]).map(s=>'来源：'+[String(s.platform||''),String(s.url||'')].filter(Boolean).join(' · '));
  const srcH=sz=>{
   ctx.font=Math.round(sz)+'px "WenQuanYi Micro Hei",sans-serif';
   return srcTexts.reduce((h,t)=>h+wrapText(ctx,t,iw,8).length*sz*1.34+sz*.25,sz*.6);
  };
  let usz=Math.round(30*u);
- const bandH=bandBot-(bandTop+34*u);
- while(usz>u0&&srcH(usz)>bandH)usz-=1;
+ const srcAvail=bandBot-srcTop;
+ while(usz>Math.max(12,Math.round(14*u))&&srcH(usz)>srcAvail)usz-=1;
  ctx.textAlign='left';ctx.textBaseline='alphabetic';
  ctx.font=Math.round(usz)+'px "WenQuanYi Micro Hei",sans-serif';
  ctx.fillStyle=T.sub;
- let uy=bandTop+34*u;
+ let uy=srcTop;
  for(const t of srcTexts){
   const ls=wrapText(ctx,t,iw,8);
   ls.forEach(ln=>{ctx.fillText(ln,ix,uy);uy+=usz*1.34});
   uy+=usz*.25;
   if(uy>bandBot-usz)break;
  }
- window.__cardDraw={w:W,h:H,u:u,tpl:tpl,src_fs:Math.round(usz),band_bot:Math.round(bandBot),last_y:Math.round(uy),overflow:uy>bandBot,src_label:'来源：',src_lines:srcTexts.length,src_red:false,summary_paragraphs:sParas.length,summary_color_lift:true,paragraph_gap:Math.round(PG)};
+ window.__cardDraw={w:W,h:H,u:u,tpl:tpl,src_fs:Math.round(usz),band_bot:Math.round(bandBot),last_y:Math.round(uy),overflow:uy>bandBot,src_label:'来源：',src_lines:srcTexts.length,src_red:false,summary_paragraphs:sParas.length,summary_color_lift:true,paragraph_gap:Math.round(PG),src_top:Math.round(srcTop),summary_bottom:Math.round(summaryBottom),src_gap:Math.round(srcTop-summaryBottom),src_band:false,summary_fs:Math.round(sSize),summary_lines:sLines};
 }
 function gates(){
  const seg=segments(),items=P.news,cv=P.cover;
@@ -1511,7 +1515,7 @@ function gates(){
   ['语义块：N 条全部有归属',buildSemantic().count===1+buildSemantic().topic_count+buildSemantic().rest_count],
   ['版式随表格可选列自动切换（等权列表 / 杂志版）',typeof drawEqualCover==='function'&&typeof drawSemanticCover==='function'&&String(drawSemanticCover).indexOf('if(!sem.enabled)')>=0&&String(drawSemanticCover).indexOf("tpl='rank'")<0],
   ['统计条彻底移除且文字块零重叠',String(drawSemanticCover).indexOf('semStats(')<0&&!!window.__coverDraw&&window.__coverDraw.overlap_count===0],
-  ['等权列表隐藏统计条且字号固定',String(drawEqualCover).indexOf('stats_hidden:true')>=0&&String(drawEqualCover).indexOf('baseFs=(land?34:38)')>=0&&String(drawEqualCover).indexOf('SP={compact:[6,8]')>=0]
+  ['等权列表隐藏统计条且字号固定',String(drawEqualCover).indexOf('stats_hidden:true')>=0&&String(drawEqualCover).indexOf('baseFs=(land?34:38)')>=0&&String(drawEqualCover).indexOf('SP={compact:[8,10]')>=0]
  ];
  $('gates').innerHTML=tests.map(([n,ok])=>'<div class="gate '+(ok?'ok':'bad')+'"><b>'+(ok?'✓':'!')+'</b>'+esc(n)+'</div>').join('');
  return tests;
