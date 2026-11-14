@@ -44,5 +44,6 @@
     ],
     "note": "素材来自表格可选列，未填列不推断；缺列不显示对应元素，版式按素材自动选择"
   },
-  "alt_bands": true
+  "alt_bands": true,
+  "sep": "bands"
 }

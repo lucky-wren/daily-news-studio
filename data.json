@@ -553,7 +553,7 @@
     "end": "今日 20:00",
     "tz": "Asia/Shanghai"
   },
-  "voice_volume_default": 1.0,
+  "voice_volume_default": 1.35,
   "issue_cfg": {
     "date": "2026-11-13",
     "weekday": "星期五",

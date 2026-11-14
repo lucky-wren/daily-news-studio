@@ -208,14 +208,16 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     title_fs = int((44 if size == 'portrait' else 38) * u)
     line_factor = 1.18
     tx_off = int(20 * u) + badge + int(20 * u)
-    # 报头重点模板右上角有「头条」胶囊，标题右侧预留宽度，避免压字
-    maxw = colw - tx_off - int(22 * u) - (int(120 * u) if tpl == 'headline' else 0)
+    # 「头条」胶囊只占第一条右上角；其余条用全宽，不再提前折行留出大片空白
+    maxw = colw - tx_off - int(22 * u)
+    maxw0 = maxw - (int(120 * u) if tpl == 'headline' else 0)
 
     def _measure(fs):
         f = F(fs, root, True)
         out = []
-        for it in items:
-            ls = wrap(d, it['title'], f, maxw)
+        for idx, it in enumerate(items):
+            mw = maxw0 if (tpl == 'headline' and idx == 0) else maxw
+            ls = wrap(d, it['title'], f, mw)
             th = len(ls) * int(fs * line_factor)
             out.append((ls, max(badge, th), th))
         return f, out
@@ -237,6 +239,7 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
     cell_h = row_h  # 兼容旧校验字段：每行高度
 
     band = mix(base, (255, 255, 255) if dark else (0, 0, 0), .075)
+    sep_mode = _sep_mode(cfg)
     plain_num = (tpl == 'list')
     for i, it in enumerate(items):
         c = i // rows
@@ -249,16 +252,17 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
         cy = y0 + (row_h - bh) / 2
         by = cy + (bh - badge) / 2
 
-        # 三套模板统一隔行底色
-        if cfg.get('alt_bands', True) and r % 2 == 1:
-            d.rounded_rectangle([x0, y0 + 2 * u, x1, y1 - 2 * u],
-                                radius=int(10 * u), fill=band)
+        # 条目分隔：五套方案统一入口，与页面 sepPaint 同源
+        _sep_paint(d, {'bg': base, 'dark': dark, 'acc': acc, 'line': line_c},
+                   sep_mode, x0, y0 + 2 * u, x1, y1 - 2 * u, r, i < 3, u)
+        no_decor = (sep_mode == 'none')
         # 结构差异：榜单卡片=逐行圆角卡；极简列表=顶部细线+纯文字序号；报头重点=首条头条块
         if tpl == 'rank':
-            if i < 3:
+            if i < 3 and not no_decor:
                 d.rectangle([x0, y0 + 3 * u, x0 + 6 * u, y1 - 3 * u], fill=acc)
         elif tpl == 'list':
-            d.line([x0, y0, x1, y0], fill=line_c, width=1)
+            if not no_decor:
+                d.line([x0, y0, x1, y0], fill=line_c, width=1)
         else:
             if i == 0:
                 d.rounded_rectangle([x0, y0 + 2 * u, x1, y1 - 2 * u],
@@ -274,7 +278,8 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
                 txt(d, (tag_x + tag_w / 2, tag_y + tag_h / 2), '头条', tag_f,
                     (255, 255, 255), True, 'mm')
             else:
-                d.line([x0, y1 - 1, x1, y1 - 1], fill=line_c, width=1)
+                if not no_decor:
+                    d.line([x0, y1 - 1, x1, y1 - 1], fill=line_c, width=1)
 
         strong = i < 3
         bx = x0 + int(20 * u)
@@ -329,7 +334,8 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
             'bottom_gap': round(H - bottom_pad - (top + block_h), 2),
             'whitespace': round((avail - block_h) / 2, 2),
             'fixed_font': True, 'label_chip': False, 'divider': tpl != 'list',
-            'alternate_bands': bool(cfg.get('alt_bands', True)), 'template_structure': tpl}
+            'sep': sep_mode, 'row_gap': row_gap,
+            'alternate_bands': sep_mode == 'bands', 'template_structure': tpl}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
         with open(meta_path, 'w', encoding='utf-8') as f:
@@ -363,19 +369,19 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     slines = wrap(d, smy, sf, maxw)
 
     src_fs = int(30 * u)
+    # 「来源：平台 · 完整地址」拼成一行，不单独占一行；用柔和副色，不用强调红抢风头
+    src_texts = ['来源：' + ' · '.join(x for x in
+                 (str(s.get('platform') or ''), str(s.get('url') or '')) if x)
+                 for s in card.get('sources', [])]
 
     def _src_lines(fs):
         rf = F(fs, root)
-        return [(str(s.get('platform', '')),
-                 wrap(d, str(s.get('url', '')), rf, maxw - int(30 * u)))
-                for s in card.get('sources', [])]
+        return [wrap(d, t, rf, maxw - int(8 * u)) for t in src_texts]
 
-    SRC_LABEL_H = int(40 * u)
     def _block_h(sl, fs):
         return (len(tlines) * int(title_fs * 1.32) + int(56 * u)
                 + len(slines) * int(sum_fs * 1.5) + int(48 * u)
-                + SRC_LABEL_H
-                + sum((1 + len(ls)) * int(fs * 1.42) + int(12 * u) for _, ls in sl))
+                + sum(len(ls) * int(fs * 1.40) + int(8 * u) for ls in sl))
 
     src_lines = _src_lines(src_fs)
     # 来源必须完整且不越出画面：字号自动收敛，仍放不下就报错而不是截断
@@ -407,20 +413,18 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     for ln in slines:
         txt(d, (pad, y), ln, sf, sub); y += int(sum_fs * 1.5)
     y += int(48 * u)
-    # 来源区只有一个「来源」标题；每行写平台名与完整地址，不再重复「来源 · 」
-    txt(d, (pad, y), '来源', F(int(30 * u), root, True), acc, True)
-    y += SRC_LABEL_H
-    for platform, urls in src_lines:
-        txt(d, (pad, y), platform, rf, acc, True); y += int(src_fs * 1.42)
-        for ln in urls:
-            txt(d, (pad + int(18 * u), y), ln, rf, sub); y += int(src_fs * 1.42)
-        y += int(12 * u)
+    # 每条来源一行「来源：…」；整体用柔和副色，不与标题争视觉重点
+    for lns in src_lines:
+        for ln in lns:
+            txt(d, (pad, y), ln, rf, sub); y += int(src_fs * 1.40)
+        y += int(8 * u)
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     im.save(out_path)
     meta = {'type': 'card', 'index': card['index'], 'w': W, 'h': H, 'tpl': tpl,
             'reveal': rv, 'block_bottom': y, 'title_lines': len(tlines), 'summary_lines': len(slines),
             'sources': len(src_lines), 'src_fs': src_fs,
+            'src_label': '来源：', 'src_red': False,
             'overflow': y > H - int(40 * u)}
     if meta_path:
         os.makedirs(os.path.dirname(meta_path) or '.', exist_ok=True)
@@ -430,6 +434,35 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
 
 
 # ================================================================== L1 语义编排封面
+# 条目分隔五套方案：与页面 sepPaint 一一对应，cfg.sep 写进配置导出。
+SEP_MODES = ('bands', 'cards', 'lines', 'bars', 'none')
+
+
+def _sep_mode(cfg):
+    v = cfg.get('sep')
+    if v in SEP_MODES:
+        return v
+    return 'bands' if cfg.get('alt_bands', True) else 'none'
+
+
+def _sep_paint(d, co, mode, x0, y0, x1, y1, i, strong, u):
+    ink = (255, 255, 255) if co['dark'] else (0, 0, 0)
+    stripe = mix(co['bg'], ink, .075)
+    line_c = mix(co['bg'], ink, .28)
+    if mode == 'bands':
+        if i % 2 == 1:
+            d.rounded_rectangle([x0, y0, x1, y1], radius=int(10 * u), fill=stripe)
+    elif mode == 'cards':
+        d.rounded_rectangle([x0, y0, x1, y1], radius=int(10 * u), fill=stripe)
+        d.rounded_rectangle([x0, y0, x1, y1], radius=int(10 * u),
+                            outline=line_c, width=1)
+    elif mode == 'lines':
+        d.line([x0, y1 - max(2, int(2 * u)), x1, y1 - max(2, int(2 * u))],
+               fill=line_c, width=max(2, int(2 * u)))
+    elif mode == 'bars':
+        d.rectangle([x0, y0, x0 + 10 * u, y1], fill=co['acc'] if strong else line_c)
+
+
 def _sem_palette(theme):
     bg = rgb(theme['bg'])
     fg = rgb(theme['txt'])
@@ -638,9 +671,8 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
         x = pad + col * (colw + col_gap)
         y0 = top + row * row_h
         y1 = y0 + card_h
-        if cfg.get('alt_bands', True) and i % 2 == 1:
-            d.rounded_rectangle([x, y0, x + colw, y1], radius=10 * u, fill=stripe)
-        d.line([x, y1, x + colw, y1], fill=strong_line, width=1)
+        _sep_paint(d, dict(co, line=strong_line), _sep_mode(cfg),
+                   x, y0, x + colw, y1, i, i < 3, u)
         bx = x + 34 * u
         by = y0 + (card_h - numw) / 2
         strong = i < 3
@@ -694,7 +726,7 @@ def _render_equal_cover(root, payload, cfg, out_path, meta_path, sem):
             'bottom_gap': round(H - footer_h - (top + block_h), 2),
             'whitespace': round((avail - block_h) / 2, 2),
             'fixed_font': True, 'label_chip': False, 'divider': True,
-            'font_fs': round(fs, 2), 'stats_hidden': True,
+            'sep': _sep_mode(cfg), 'font_fs': round(fs, 2), 'stats_hidden': True,
             'hero_value': '', 'topic_count': 0, 'rest_count': n,
             'boards': [], 'enabled': False}
     if meta_path:
@@ -736,7 +768,11 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
     land = size == 'landscape'
     footer_h = 62 * u
     gap_cfg = cfg.get('gap', 'airy')
-    row_gap = {'compact': 12, 'standard': 18, 'airy': 24}.get(gap_cfg, 18) * u
+    row_gap = {'compact': 6, 'standard': 18, 'airy': 34}.get(gap_cfg, 18) * u
+    land_gap = {'compact': 2, 'standard': 14, 'airy': 28}.get(gap_cfg, 14) * u
+    # 行高按最大档收敛：三档差全部留给条目间真实空隙，不被 rowh 反推吃掉
+    rh_gap, lh_gap = 34 * u, 28 * u
+    sep_mode = _sep_mode(cfg)
     d.rectangle([0, 0, W, max(3, int(6 * u))], fill=acc)
     show_t = head.get('show_title', True)
     show_d = head.get('show_date', True)
@@ -883,10 +919,8 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
 
             def row(y, f=f, ls=ls, k=k, it=it, rh=rh, tag=tag, ty=ty, lh=lh):
                 boxes.append([x0, y, x1, y + rh - 6 * u])
-                stripe = bool(cfg.get('stripe', True)) and k % 2 == 0
-                if stripe:
-                    d.rounded_rectangle([x0 - 8 * u, y, x1, y + rh - 6 * u],
-                                        radius=int(10 * u), fill=co['card'])
+                _sep_paint(d, co, sep_mode, x0 - 8 * u, y, x1, y + rh - 6 * u,
+                           k, it['rank'] <= 3, u)
                 nx = num_chip(x0, y, rh - 6 * u, it['rank'], it['rank'] <= 3,
                               tag + '_row' + str(k))
                 for j, ln in enumerate(ls):
@@ -926,11 +960,11 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
         rh = 96 * u
         if all_items or rest:
             for _ in range(4):
-                cy_t = cy0 + (54 * u + len(all_items) * (rh + row_gap) - row_gap
+                cy_t = cy0 + (54 * u + len(all_items) * (rh + rh_gap) - rh_gap
                               + 34 * u) if all_items else cy0
                 avail = H - footer_h - 20 * u - cy_t
                 rh = max(58 * u, min(96 * u,
-                        (avail - 54 * u - len(rest) * row_gap) / max(1, len(rest))))
+                        (avail - 54 * u - len(rest) * rh_gap) / max(1, len(rest))))
         if all_items:
             label = '专题 · ' + (sem['topics'][0]['name'] or sem['topics'][0]['id'])
             e, _ = list_section(label, all_items, pad + 26 * u, W - pad - 26 * u,
@@ -1023,7 +1057,7 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
         # 下半双栏：专题 / 其余要闻，共用行高与字号
         ry0 = 496 * u
         avail = H - footer_h - 14 * u - ry0
-        gapL = row_gap * .5
+        gapL = land_gap
         all_items = []
         for t in sem['topics']:
             for it in t['items']:
@@ -1038,7 +1072,7 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
         rx0, rx1 = W * .51, x1 - 8 * u
         maxrows = max(len(all_items), len(rest), 1)
         rh = max(78 * u, min(118 * u,
-                 (avail - 54 * u - maxrows * gapL) / maxrows))
+                 (avail - 54 * u - maxrows * lh_gap) / maxrows))
         cap = int((rh - 14 * u) / (2 * 1.32))
         fs = min(34 * u, cap)
 
@@ -1063,9 +1097,8 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             yy = y + 54 * u
             for k, it in enumerate(arr):
                 h = rh - 6 * u
-                if cfg.get('stripe', cfg.get('altBands', True)) and k % 2 == 0:
-                    d.rounded_rectangle([a - 8 * u, yy, b, yy + h],
-                                        radius=int(10 * u), fill=co['card'])
+                _sep_paint(d, co, sep_mode, a - 8 * u, yy, b, yy + h,
+                           k, it['rank'] <= 3, u)
                 nx = num_chip(a, yy, h, it['rank'], it['rank'] <= 3,
                               tag + '_row' + str(k))
                 ls = wrap(d, str(it['label']), f, maxw)[:2]
@@ -1135,6 +1168,7 @@ def render_semantic_cover(root, payload, cfg, out_path, meta_path=None):
             if sem['hero'] else 0,
             'text_boxes': len(tboxes), 'overlap_count': len(ov), 'overlaps': ov[:8],
             'list_sections': section_fs, 'uniform_font_per_group': True,
+            'sep': sep_mode, 'row_gap': round(row_gap, 2), 'land_gap': round(land_gap, 2),
             'uniform_font': len({x['fs'] for x in section_fs}) <= 1 if section_fs else True,
             'out_of_canvas': len([b for b in tboxes
                                   if b[0] < -2 or b[1] < -2 or b[2] > W + 2 or b[3] > H + 2]),

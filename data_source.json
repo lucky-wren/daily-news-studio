@@ -37,7 +37,7 @@
     "mode": "libretts",
     "voice": "zh-CN-YunyangNeural",
     "rate": 0,
-    "volume": 1.0,
+    "volume": 1.35,
     "endpoint": "https://libretts.is-an.org/api/tts",
     "timeout_s": 20,
     "retries": 2,
@@ -48,12 +48,12 @@
   },
   "bgm": {
     "file": null,
-    "volume": 0.33,
+    "volume": 0.3,
     "note": "配乐仅自定义上传；点「不配乐」时为纯人声。",
-    "duck": true,
+    "duck": false,
     "duck_db": -8,
-    "fade_in": 0.4,
-    "fade_out": 0.8
+    "fade_in": 0.0,
+    "fade_out": 0.0
   },
   "subtitle": {
     "on": true,
@@ -97,7 +97,8 @@
     "semantic": {
       "mode": "L1"
     },
-    "alt_bands": true
+    "alt_bands": true,
+    "sep": "bands"
   },
   "video_card_theme": {
     "tpl": "frame_card",
@@ -795,13 +796,13 @@
   "semantic_mode": "L1",
   "disclaimer": "内容依据公开信息整理，具体以官方发布为准；仅供参考，不构成投资、医疗或法律建议。",
   "mix": {
-    "voice_volume": 1.0,
-    "bgm_volume": 0.33,
-    "master_gain_db": 0.0,
-    "duck": true,
+    "voice_volume": 1.35,
+    "bgm_volume": 0.3,
+    "master_gain_db": 3.0,
+    "duck": false,
     "duck_db": -8,
-    "fade_in": 0.4,
-    "fade_out": 0.8,
-    "concurrency": 12
+    "fade_in": 0.0,
+    "fade_out": 0.0,
+    "concurrency": 16
   }
 }

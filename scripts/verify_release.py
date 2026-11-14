@@ -372,21 +372,41 @@ def main():
     ck('时间轴可拖动指针定位', all(x in html for x in
        ('id="pbarHead"', 'id="tlHead"', 'function seekToRatio(', 'function bindSeek(',
         'setPointerCapture')))
-    ck('混声设置齐备且前后端同源', all(('id="%s"' % x) in html for x in
-       ('mixVoice', 'mixBgm', 'mixMaster', 'mixDuck', 'mixFadeIn', 'mixFadeOut'))
+    ck('混声只有三项且前后端同源', all(('id="%s"' % x) in html for x in
+       ('mixVoice', 'mixBgm', 'mixMaster'))
+       and not any(('id="%s"' % x) in html for x in
+                   ('mixDuck', 'mixDuckDb', 'mixFadeIn', 'mixFadeOut'))
        and 'function mixCfg(' in html and 'mix' in mf['config']
        and 'master_gain_db' in mf['config']['voice']
        and 'concurrency' in mf['config']['voice'])
+    ck('默认响度提高、不再压低配乐与自动淡入淡出',
+       float(ds.get('voice', {}).get('volume') or 0) > 1.0
+       and float(ds.get('mix', {}).get('master_gain_db') or 0) > 0
+       and ds.get('mix', {}).get('duck') is False
+       and float(ds.get('mix', {}).get('fade_in', 1)) == 0
+       and float(ds.get('mix', {}).get('fade_out', 1)) == 0
+       and float(data.get('voice_volume_default') or 0) > 1.0
+       and 'volume:1.35' in html and 'master_db:3' in html
+       and 'function attachVoiceGain(' in html
+       and "S.mix.duck=false;S.mix.fade_in=0;S.mix.fade_out=0" in html)
     ck('服务端混音 duck 与淡入淡出',
        'duck_db' in prod and 'afade=t=in' in prod and 'afade=t=out' in prod)
     ck('逐句合成增量复用与持久化缓存',
        'LAST_SIG' in html and 'indexedDB.open' in html
        and 'function cacheGet(' in html and '增量复用' in html)
-    ck('封面三模板隔行底色可设置且结构区分',
-       "if(S.cover.altBands!==false&&row%2===1)" in html and "cfg.get('alt_bands', True) and r % 2 == 1" in rend
-       and 'id="cvAltBands"' in html and 'alt_bands' in open(os.path.join(ROOT, 'cover_theme.json'), encoding='utf-8').read()
+    _SEPS = ('bands', 'cards', 'lines', 'bars', 'none')
+    ck('条目分隔五套方案，前后端同源且写进配置',
+       "const CV_SEPS={bands:'隔行底色',cards:'独立卡片',lines:'细线分隔',bars:'左侧色条',none:'纯留白'}" in html
+       and "SEP_MODES = ('bands', 'cards', 'lines', 'bars', 'none')" in rend
+       and 'function sepMode(' in html and 'function sepPaint(' in html
+       and 'def _sep_mode(' in rend and 'def _sep_paint(' in rend
+       and 'id="cvSeps"' in html and "chips($('cvSeps'),CV_SEPS" in html
+       and 'sep:sepMode()' in html and "'sep': sep_mode" in rend
+       and 'sepPaint(ctx,sepCo' in html and '_sep_paint(d,' in rend
+       and ct.get('sep') in _SEPS
+       and ds.get('cover_theme', {}).get('sep') in _SEPS
+       and mf['config'].get('cover', {}).get('sep') in _SEPS
        and "const tpl=S.cover.tpl" in html
-       and "'alternate_bands': bool(cfg.get('alt_bands', True))" in rend
        and "plain_num = (tpl == 'list')" in rend)
     ck('语义列表序号独立、行盒顺序推进且不复用 y',
        'def num_chip(' in rend and 'const numChip=' in html
@@ -400,14 +420,19 @@ def main():
        and 'def hero_lines(' in rend and 'const heroLines=' in html
        and '22 * u' in rend and '22*u' in html
        and '先看这一条' not in rend and '先看这一条' not in html)
-    ck('榜单卡片无边框线',
-       "if(tpl==='rank'){\n   if(i<3)" in html and "if tpl == 'rank':\n            if i < 3:" in rend)
+    ck('榜单卡片无边框线（纯留白方案下连结构线也不画）',
+       "if(i<3&&!noDecor)" in html and "if i < 3 and not no_decor:" in rend
+       and 'noDecor=sepMode()' in html)
     ck('报头重点头条角标放大且移到右上角',
        "const tagTxt='头条',tagFs=Math.round(28*u)" in html and "tag_f = F(int(28 * u)" in rend)
-    ck('卡片来源只出现一个「来源」标题',
-       "ctx.fillText('来源',ix,bandTop+45*u)" in html
-       and "'来源 · '+s.platform" not in html and "'来源 · ' + platform" not in rend
-       and "txt(d, (pad, y), '来源'," in rend)
+    ck('卡片来源拼成「来源：…」一行，柔和色不抢风头',
+       "const srcTexts=(c.sources||[]).map(s=>'来源：'" in html
+       and "ctx.fillStyle=T.sub;" in html
+       and "ctx.fillText('来源',ix" not in html
+       and "src_texts = ['来源：'" in rend
+       and "txt(d, (pad, y), '来源'," not in rend
+       and "'src_red': False" in rend and 'src_red:false' in html
+       and "'来源 · '+s.platform" not in html and "'来源 · ' + platform" not in rend)
     ck('取消后可立即再合成、断点续合',
        'let voiceBusy=false' in html and 'voiceRun++' in html and '断点' in html
        and 'Promise.all(missing.map' in html and 'Promise.all(raw.map' in html)
@@ -437,6 +462,23 @@ def main():
        and "while d.textlength(text, font=f) > maxw and fs > minfs" not in rend
        and "while(ctx.measureText(text).width>maxW&&fs>minFs)" not in html
        and "one_line(txt1" not in rend and 'oneLine(it.label' not in html)
+    ck('标题右侧不再提前折行（头条角标只占第一条）',
+       "const maxW0=maxW-(S.cover.tpl==='headline'?120*u:0)" in html
+       and "(S.cover.tpl==='headline'&&i===0)?maxW0:maxW" in html
+       and "maxw0 = maxw - (int(120 * u) if tpl == 'headline' else 0)" in rend
+       and "mw = maxw0 if (tpl == 'headline' and idx == 0) else maxw" in rend)
+    ck('语义编排条目间距三档前后端真实生效',
+       "const RG={compact:6,standard:18,airy:34}" in html
+       and "const GL={compact:2,standard:14,airy:28}" in html
+       and "{'compact': 6, 'standard': 18, 'airy': 34}.get(gap_cfg" in rend
+       and "{'compact': 2, 'standard': 14, 'airy': 28}.get(gap_cfg" in rend
+       and 'gapL=GL*u' in html and 'gapL = land_gap' in rend
+       and "const RH_GAP=34*u,LH_GAP=28*u" in html and 'rh_gap, lh_gap = 34 * u, 28 * u' in rend
+       and 'row_gap:Math.round(rowGap)' in html and "'land_gap': round(land_gap, 2)" in rend)
+    ck('刷新在线音色一律中文名，不再把英文 id 当标签',
+       'const VOICE_CN0=' in html and 'function cnVoiceName(' in html
+       and 'VOICE_ALIAS=[' in html and "o.textContent=cnVoiceName(o.value)" in html
+       and "'<option value="'+esc(id)+'">'+esc(nm)+'</option>'" not in html)
     ck('stillimage 调优', "'-tune', 'stillimage'" in prod)
     ck('音频 64k 单声道', "'-b:a', '64k'" in prod and "'-ac', '1'" in prod)
 

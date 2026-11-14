@@ -830,9 +830,9 @@
       "mode": "libretts",
       "voice": "zh-CN-YunyangNeural",
       "rate": 0,
-      "volume": 1.0,
-      "master_gain_db": 0.0,
-      "concurrency": 12,
+      "volume": 1.35,
+      "master_gain_db": 3.0,
+      "concurrency": 16,
       "endpoint": "https://libretts.is-an.org/api/tts",
       "upload": null,
       "timeout_s": 20,
@@ -840,22 +840,22 @@
     },
     "bgm": {
       "file": null,
-      "volume": 0.33,
-      "enabled": false,
-      "duck": true,
-      "duck_db": -8.0,
-      "fade_in": 0.4,
-      "fade_out": 0.8
+      "volume": 0.3,
+      "note": "配乐仅自定义上传；点「不配乐」时为纯人声。",
+      "duck": false,
+      "duck_db": -8,
+      "fade_in": 0.0,
+      "fade_out": 0.0
     },
     "mix": {
-      "voice_volume": 1.0,
-      "bgm_volume": 0.33,
-      "master_gain_db": 0.0,
-      "duck": true,
-      "duck_db": -8.0,
-      "fade_in": 0.4,
-      "fade_out": 0.8,
-      "concurrency": 12
+      "voice_volume": 1.35,
+      "bgm_volume": 0.3,
+      "master_gain_db": 3.0,
+      "duck": false,
+      "duck_db": -8,
+      "fade_in": 0.0,
+      "fade_out": 0.0,
+      "concurrency": 16
     },
     "subtitle": {
       "on": true,
@@ -946,7 +946,8 @@
       },
       "alt_bands": true,
       "version": "1.0",
-      "export_size": "portrait"
+      "export_size": "portrait",
+      "sep": "bands"
     },
     "video_card": {
       "tpl": "frame_card",
