@@ -165,7 +165,10 @@ def frames_for(root, manifest, voice, size, tw):
         durs = [total * w / sum(weights) for w in weights]
     _, tw_frame = tw_targets(tw)
     steps = max(2, min(int(tw.get('max_steps', 8)), 12))
-    cfg = dict(manifest['config'].get('video_card') or {}, size=size)
+    _hdr = {'title': (manifest['config'].get('cover') or {}).get('title') or '每日要闻速览',
+            'date': (manifest.get('issue') or {}).get('date') or '',
+            'show_title': True, 'show_date': True}
+    cfg = dict(manifest['config'].get('video_card') or {}, size=size, card_header=_hdr)
     theme = (manifest['config'].get('cover') or {}).get('theme', 'deep_blue')
     acc_hex = R.THEMES.get(theme, R.THEMES['deep_blue'])['acc']
     out = []
@@ -301,7 +304,10 @@ def produce(root, manifest, voice, card_cfg):
 
     cdir = os.path.join(root, '.cache', 'cards_' + size)
     os.makedirs(cdir, exist_ok=True)
-    cc = dict(card_cfg, size=size)
+    _hdr = {'title': (manifest['config'].get('cover') or {}).get('title') or '每日要闻速览',
+            'date': (manifest.get('issue') or {}).get('date') or '',
+            'show_title': True, 'show_date': True}
+    cc = dict(card_cfg, size=size, card_header=_hdr)
     card_overflow = []
     for c in manifest['cards']:
         cmeta = R.render_card(root, c, cc, os.path.join(cdir, 'c%03d.png' % c['index']))

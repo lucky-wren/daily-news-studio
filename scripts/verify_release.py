@@ -510,6 +510,26 @@ def main():
        and 'mixHex(T.sub,T.txt,.55)' in html
        and 'def _summary_paras(' in rend and 'sum_col = mix(sub, fg, .55)' in rend
        and "'summary_color_lift': True" in rend)
+    ck('导出多格式：视频/音频/字幕/图片/文稿/配置共 11 种，单一主按钮',
+       'id="expFmt"' in html and 'const EXPORT_FORMATS=' in html
+       and html.count('<option value=') >= 11
+       and 'export_format:exportFormat()' in html
+       and "exportFormat()!=='mp4'" in html
+       and "id==='btnExpVideo'&&sel&&sel.value!=='mp4'" in html
+       and 'function buildAss(' in html)
+    ck('摘要每段首行缩进（页面与服务端同源）',
+       'function splitSummary(ctx,text,maxW,maxLines,indent)' in html
+       and 'splitSummary(ctx,sSum,iw,16,ind)' in html
+       and 'ix+(li===0?sInd:0)' in html
+       and 'summary_indent' in html
+       and 'def _summary_paras(d, text, font, maxw, indent=0):' in rend
+       and 'pad + (sum_indent if li == 0 else 0)' in rend
+       and "'summary_indent': sum_indent" in rend)
+    ck('卡片顶部日期与分类标签放大提亮（前后端同源）',
+       'const HDR_FS=Math.round(28*u),NO_FS=Math.round(30*u)' in html
+       and 'mixHex(T.sub,T.txt,.62)' in html
+       and "CARD_HDR_FS = 28" in rend and "CARD_NO_FS = 30" in rend
+       and 'meta_col = mix(sub, fg, CARD_META_LIFT)' in rend)
     ck('stillimage 调优', "'-tune', 'stillimage'" in prod)
     ck('音频 64k 单声道', "'-b:a', '64k'" in prod and "'-ac', '1'" in prod)
 

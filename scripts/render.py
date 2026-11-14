@@ -24,6 +24,11 @@ AVOID_HEAD = set('，。；：！？、）》」』】,.!?;:)]}')
 HEAD_DATE_GAP = 82   # 日期牌中心距标题块底部；与 index.html 同值（原 46，标题与日期贴太近）
 HEAD_RULE_AT = 126  # 日期牌下方分隔线位置；与页面同值
 HEAD_TITLE_AT = 72  # 主标题起点（期号胶囊放大后避免压字）
+CARD_HDR_FS = 28    # 视频卡片顶部「每日要闻速览 · 日期」字号（原 19）
+CARD_NO_FS = 30     # 「NO.xx · 分类标签」字号（原 21）
+CARD_META_LIFT = .62  # 元信息向主文字提亮比例（原纯 sub 太浅）
+CARD_INDENT = 2     # 摘要每段首行缩进汉字数
+
 DATE_FS = 38        # 日期牌字号（原 30）
 DATE_BH = 62        # 日期牌高度（原 48）
 ISSUE_FS = 38       # 期号胶囊字号（原 30）
@@ -344,8 +349,8 @@ def render_cover(root, payload, cfg, out_path, meta_path=None):
 
 
 # ------------------------------------------------------------------ 视频卡片帧
-def _summary_paras(d, text, font, maxw):
-    """按句末标点分段，段内按宽度折行；与页面 splitSummary 同源。"""
+def _summary_paras(d, text, font, maxw, indent=0):
+    """按句末标点分段，段内按宽度折行；每段首行缩进 indent 像素，与页面 splitSummary 同源。"""
     parts, buf = [], ''
     for ch in str(text or ''):
         buf += ch
@@ -355,7 +360,20 @@ def _summary_paras(d, text, font, maxw):
         parts.append(buf)
     if not parts:
         parts = ['']
-    return [wrap(d, p, font, maxw) for p in parts]
+    out = []
+    for p in parts:
+        if indent > 0:
+            narrow = wrap(d, p, font, max(8, maxw - indent))
+            if narrow:
+                first = narrow[0]
+                rest = p[len(first):]
+                lines = [first] + (wrap(d, rest, font, maxw) if rest else [])
+            else:
+                lines = wrap(d, p, font, maxw)
+        else:
+            lines = wrap(d, p, font, maxw)
+        out.append(lines)
+    return out
 
 
 def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
@@ -376,6 +394,19 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     tf = F(title_fs, root, True); sf = F(sum_fs, root)
 
     maxw = W - 2 * pad
+    hdr = cfg.get('card_header') or {}
+    hdr_title = str(hdr.get('title') or '每日要闻速览')
+    hdr_date = str(hdr.get('date') or '')
+    if not hdr_date:
+        try:
+            with open(os.path.join(root, 'data.json'), encoding='utf-8') as _f:
+                hdr_date = str(json.load(_f).get('date') or '')
+        except Exception:
+            hdr_date = ''
+    hdr_text = (hdr_title + (' · ' + hdr_date if hdr_date else '')) if hdr.get('show_title', True) else hdr_date
+    meta_col = mix(sub, fg, CARD_META_LIFT)
+    no_fs = int(CARD_NO_FS * u)
+    no_h = int(CARD_NO_FS * 1.7 * u)
     rv = max(0.0, min(1.0, float(reveal)))
     ttl = card['title'] if rv >= 1 else card['title'][:max(0, int(round(len(card['title']) * rv)))]
     smy = card['summary'] if rv >= 1 else card['summary'][:max(0, int(round(len(card['summary']) * rv)))]
@@ -395,24 +426,25 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     def _layout(sfs, rfs):
         """按给定摘要/来源字号重排：返回分段、行数、段距、来源行、整块高度。"""
         sfont = F(sfs, root)
-        paras = _summary_paras(d, smy, sfont, maxw)
+        indent = int(CARD_INDENT * sfs)
+        paras = _summary_paras(d, smy, sfont, maxw, indent)
         lines = [ln for p in paras for ln in p]
         pgap = int(sfs * .6)
         sl = _src_lines(rfs)
-        h = (len(tlines) * int(title_fs * 1.32) + int(56 * u)
+        h = (no_h + len(tlines) * int(title_fs * 1.32) + int(56 * u)
              + len(lines) * int(sfs * 1.5) + pgap * max(0, len(paras) - 1)
              + src_gap
              + sum(len(ls) * int(rfs * 1.40) + int(8 * u) for ls in sl))
-        return paras, lines, pgap, sl, h
+        return paras, lines, pgap, sl, h, indent
 
     limit = H - int(220 * u)
-    sum_paras, slines, para_gap, src_lines, block_h = _layout(sum_fs, src_fs)
+    sum_paras, slines, para_gap, src_lines, block_h, sum_indent = _layout(sum_fs, src_fs)
     while src_fs > int(16 * u) and block_h > limit:
         src_fs -= int(1 * u)
-        sum_paras, slines, para_gap, src_lines, block_h = _layout(sum_fs, src_fs)
+        sum_paras, slines, para_gap, src_lines, block_h, sum_indent = _layout(sum_fs, src_fs)
     while sum_fs > int(24 * u) and block_h > limit:
         sum_fs -= int(1 * u)
-        sum_paras, slines, para_gap, src_lines, block_h = _layout(sum_fs, src_fs)
+        sum_paras, slines, para_gap, src_lines, block_h, sum_indent = _layout(sum_fs, src_fs)
     sf = F(sum_fs, root)
     rf = F(src_fs, root)
     sum_col = mix(sub, fg, .55)   # 提高摘要对比度，不再是一整片浅灰
@@ -433,12 +465,26 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
         txt(d, (pad, int(52 * u)), str(card.get('label') or '今日要闻'), F(int(34 * u), root, True), (255, 255, 255), True)
         d.rectangle([pad, H - int(150 * u), W - pad, H - int(146 * u)], fill=line_c)
 
+    # 顶部日期行：画在模板装饰之后，避免被朱红顶栏 / 序号徽章覆盖
+    if hdr_text:
+        hf = F(int(CARD_HDR_FS * u), root, True)
+        if tpl == 'frame_card':
+            hx, hy, hanc, hcol = pad + int(72 * u), header_y + int(28 * u), 'lm', meta_col
+        elif tpl == 'frame_headline':
+            hx, hy, hanc, hcol = W - pad, int(56 * u), 'ra', (255, 255, 255)
+        else:
+            hx, hy, hanc, hcol = pad, header_y - int(6 * u), 'la', meta_col
+        txt(d, (hx, hy), hdr_text, hf, hcol, True, hanc)
+    # 「NO.xx · 分类标签」：放大 + 提亮，与页面 canvas 同源
+    txt(d, (pad, y), 'NO.%02d  ·  %s' % (card['index'], str(card.get('label') or '')),
+        F(no_fs, root, True), meta_col)
+    y += no_h
     for ln in tlines:
         txt(d, (pad, y), ln, tf, fg, True); y += int(title_fs * 1.32)
     y += int(56 * u)   # 标题与摘要拉开
     for pi, para in enumerate(sum_paras):
-        for ln in para:
-            txt(d, (pad, y), ln, sf, sum_col); y += int(sum_fs * 1.5)
+        for li, ln in enumerate(para):
+            txt(d, (pad + (sum_indent if li == 0 else 0), y), ln, sf, sum_col); y += int(sum_fs * 1.5)
         if pi < len(sum_paras) - 1:
             y += para_gap
     summary_bottom = y
@@ -456,6 +502,8 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
             'reveal': rv, 'block_bottom': y, 'title_lines': len(tlines), 'summary_lines': len(slines),
             'sources': len(src_lines), 'src_fs': src_fs,
             'summary_paragraphs': len(sum_paras), 'paragraph_gap': para_gap,
+            'summary_indent': sum_indent, 'hdr_fs': int(CARD_HDR_FS * u),
+            'no_fs': no_fs, 'meta_lift': CARD_META_LIFT,
             'summary_color_lift': True,
             'src_label': '来源：', 'src_red': False,
             'src_gap': src_gap, 'src_top': round(src_top), 'summary_bottom': round(summary_bottom),
