@@ -28,6 +28,10 @@ CARD_HDR_FS = 28    # 视频卡片顶部「每日要闻速览 · 日期」字号
 CARD_NO_FS = 30     # 「NO.xx · 分类标签」字号（原 21）
 CARD_META_LIFT = .62  # 元信息向主文字提亮比例（原纯 sub 太浅）
 CARD_INDENT = 2     # 摘要每段首行缩进汉字数
+SUM_BASE_MIX = .58        # 摘要从副色向主文字混合比例（标题保持 fg，不再同为一片白）
+SUM_COOL_DARK = '#8fb2d4'
+SUM_COOL_LIGHT = '#3c5a7d'
+SUM_COOL_MIX = .20         # 再向冷蓝偏，形成明确色相层级
 
 DATE_FS = 38        # 日期牌字号（原 30）
 DATE_BH = 62        # 日期牌高度（原 48）
@@ -390,7 +394,7 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     pad = int(72 * u)
 
     title_fs = int((70 if size == 'portrait' else 60) * u)
-    sum_fs = int((46 if size == 'portrait' else 40) * u)   # 摘要放大，与页面同尺度
+    sum_fs = int((50 if size == 'portrait' else 44) * u)   # 摘要放大，与页面同尺度
     tf = F(title_fs, root, True); sf = F(sum_fs, root)
 
     maxw = W - 2 * pad
@@ -429,10 +433,10 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
         indent = int(CARD_INDENT * sfs)
         paras = _summary_paras(d, smy, sfont, maxw, indent)
         lines = [ln for p in paras for ln in p]
-        pgap = int(sfs * .6)
+        pgap = int(sfs * .36)
         sl = _src_lines(rfs)
         h = (no_h + len(tlines) * int(title_fs * 1.32) + int(56 * u)
-             + len(lines) * int(sfs * 1.5) + pgap * max(0, len(paras) - 1)
+             + len(lines) * int(sfs * 1.34) + pgap * max(0, len(paras) - 1)
              + src_gap
              + sum(len(ls) * int(rfs * 1.40) + int(8 * u) for ls in sl))
         return paras, lines, pgap, sl, h, indent
@@ -442,12 +446,14 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     while src_fs > int(16 * u) and block_h > limit:
         src_fs -= int(1 * u)
         sum_paras, slines, para_gap, src_lines, block_h, sum_indent = _layout(sum_fs, src_fs)
-    while sum_fs > int(24 * u) and block_h > limit:
+    while sum_fs > int((38 if size == 'portrait' else 34) * u) and block_h > limit:
         sum_fs -= int(1 * u)
         sum_paras, slines, para_gap, src_lines, block_h, sum_indent = _layout(sum_fs, src_fs)
     sf = F(sum_fs, root)
     rf = F(src_fs, root)
-    sum_col = mix(sub, fg, .55)   # 提高摘要对比度，不再是一整片浅灰
+    sum_col = mix(mix(sub, fg, SUM_BASE_MIX),
+                  rgb(SUM_COOL_DARK if theme.get('dark') else SUM_COOL_LIGHT),
+                  SUM_COOL_MIX)   # 与标题 fg 分级的冷蓝次级色；亮度仍远高于可读下限
     y = max(int(110 * u), (H - block_h) / 2)  # 垂直居中
     header_y = int(56 * u)
 
@@ -484,7 +490,7 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
     y += int(56 * u)   # 标题与摘要拉开
     for pi, para in enumerate(sum_paras):
         for li, ln in enumerate(para):
-            txt(d, (pad + (sum_indent if li == 0 else 0), y), ln, sf, sum_col); y += int(sum_fs * 1.5)
+            txt(d, (pad + (sum_indent if li == 0 else 0), y), ln, sf, sum_col); y += int(sum_fs * 1.34)
         if pi < len(sum_paras) - 1:
             y += para_gap
     summary_bottom = y
@@ -504,6 +510,9 @@ def render_card(root, card, cfg, out_path, meta_path=None, reveal=1.0):
             'summary_paragraphs': len(sum_paras), 'paragraph_gap': para_gap,
             'summary_indent': sum_indent, 'hdr_fs': int(CARD_HDR_FS * u),
             'no_fs': no_fs, 'meta_lift': CARD_META_LIFT,
+            'sum_fs': sum_fs, 'summary_color_mix': SUM_BASE_MIX,
+            'summary_cool_mix': SUM_COOL_MIX, 'title_color_sep': True,
+            'min_sum_fs': int((38 if size == 'portrait' else 34) * u),
             'summary_color_lift': True,
             'src_label': '来源：', 'src_red': False,
             'src_gap': src_gap, 'src_top': round(src_top), 'summary_bottom': round(summary_bottom),

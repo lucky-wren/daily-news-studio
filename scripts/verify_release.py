@@ -453,9 +453,51 @@ def main():
     ck('视频卡摘要放大、来源不溢出',
        'Math.min(W,H)/1080' in html and 'bandBot' in html
        and 'u = min(W, H) / 1080.0' in rend
-       and 'sum_fs = int((46 if' in rend
+       and 'sum_fs = int((50 if' in rend
        and 'card_overflow' in prod
        and (not vs.get('ok') or vs.get('card_overflow') == []))
+    ck('摘要字号不得被压小、且与标题分级配色（前后端同源）',
+       'ssz=Math.round((land?44:50)*u)' in html
+       and "while(sSize>Math.round((land?36:40)*u)&&" in html
+       and 'splitSummary(ctx,sSum,iw,24,ind)' in html
+       and 'function sumColorHex(' in html and 'sumColorHex(T)' in html
+       and 'summary_color_mix:.58' in html and 'summary_cool_mix:.20' in html
+       and "while sum_fs > int((38 if size == 'portrait' else 34) * u)" in rend
+       and 'SUM_BASE_MIX = .58' in rend and 'SUM_COOL_MIX = .20' in rend
+       and "'sum_fs': sum_fs" in rend
+       and 'ln*size*1.34' in html and "pgap = int(sfs * .36)" in rend)
+
+    # 标题与摘要必须真实不同色，且摘要仍清晰可读（静态按同一套配色公式计算）
+    def _lum(c):
+        q = [x / 255.0 for x in c]
+        q = [x / 12.92 if x <= .04045 else ((x + .055) / 1.055) ** 2.4 for x in q]
+        return .2126 * q[0] + .7152 * q[1] + .0722 * q[2]
+    def _cr(a, b):
+        la, lb = _lum(a), _lum(b)
+        return (max(la, lb) + .05) / (min(la, lb) + .05)
+    def _hex(s):
+        s = s.lstrip('#')
+        return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+    def _mix(a, b, t):
+        return tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
+    _t = [('#0d1b2a', '#f2f6fb', '#a9bdd4', True), ('#14161a', '#f5f6f8', '#a7adb8', True),
+          ('#101a38', '#f2f5ff', '#a9b8de', True), ('#f7f9fc', '#16283f', '#5a6c82', False),
+          ('#faf5ea', '#2a2118', '#756454', False), ('#f0f6fc', '#12263d', '#5a7390', False)]
+    _sep, _read = [], []
+    for _bg, _fg, _sub, _dark in _t:
+        _sum = _mix(_mix(_hex(_sub), _hex(_fg), .58),
+                    _hex('#8fb2d4' if _dark else '#3c5a7d'), .20)
+        _sep.append(sum(abs(a - b) for a, b in zip(_hex(_fg), _sum)))
+        _read.append(_cr(_hex(_bg), _sum))
+    ck('标题与摘要真实不同色（6 主题 RGB 总差均 >=60）', min(_sep) >= 60,
+       [round(x, 1) for x in _sep])
+    ck('摘要仍清晰可读，不回到浅灰小字（6 主题对比度均 >=6.5:1）', min(_read) >= 6.5,
+       [round(x, 2) for x in _read])
+    ck('标题比摘要更亮/更跳，层级方向正确（6 主题）',
+       all(_cr(_hex(bg), _hex(fg)) > _cr(_hex(bg), _mix(
+           _mix(_hex(sub), _hex(fg), .58), _hex('#8fb2d4' if dark else '#3c5a7d'), .20))
+           for bg, fg, sub, dark in _t))
+
     ck('视频卡前后端均按短边缩放（横屏来源不溢出）',
        'Math.min(W,H)/1080' in html and 'u = min(W, H) / 1080.0' in rend
        and 'const scale=Math.min(W,H)/1080' in html
@@ -505,10 +547,11 @@ def main():
        and "'compact': 16, 'standard': 28, 'airy': 40" in rend
        and "const SP={compact:[8,10],standard:[11,14],airy:[16,20]}" in html
        and "SPACING = {'compact': (8, 10), 'standard': (11, 14), 'airy': (16, 20)}" in rend)
-    ck('摘要分段换行且颜色提亮（页面与服务端同源）',
+    ck('摘要分段换行且与标题分级配色（页面与服务端同源）',
        'function splitSummary(' in html and 'summary_paragraphs:sParas.length' in html
-       and 'mixHex(T.sub,T.txt,.55)' in html
-       and 'def _summary_paras(' in rend and 'sum_col = mix(sub, fg, .55)' in rend
+       and 'function sumColorHex(' in html and 'ctx.fillStyle=sumColorHex(T)' in html
+       and 'def _summary_paras(' in rend and 'sum_col = mix(mix(sub, fg, SUM_BASE_MIX)' in rend
+       and "'title_color_sep': True" in rend
        and "'summary_color_lift': True" in rend)
     ck('导出多格式：视频/音频/字幕/图片/文稿/配置共 11 种，单一主按钮',
        'id="expFmt"' in html and 'const EXPORT_FORMATS=' in html
@@ -519,7 +562,7 @@ def main():
        and 'function buildAss(' in html)
     ck('摘要每段首行缩进（页面与服务端同源）',
        'function splitSummary(ctx,text,maxW,maxLines,indent)' in html
-       and 'splitSummary(ctx,sSum,iw,16,ind)' in html
+       and 'splitSummary(ctx,sSum,iw,24,ind)' in html
        and 'ix+(li===0?sInd:0)' in html
        and 'summary_indent' in html
        and 'def _summary_paras(d, text, font, maxw, indent=0):' in rend
