@@ -1,0 +1,84 @@
+name: 校验站点
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 组装站点
+        run: |
+          set -eu
+          rm -rf _site && mkdir -p _site/assets/fonts _site/assets/bgm _site/media
+          FILES="index.html vox_export.js char_times.js mp3_encoder.js \
+                 data.js data.json data_source.json \
+                 video_cards.json video_card_theme.json cover_theme.json \
+                 source.xlsx 口播文稿.md 封面清单.md"
+          for f in $FILES; do
+            test -f "$f" || { echo "缺少源文件: $f"; exit 1; }
+          done
+          cp $FILES _site/
+          test -f assets/fonts/wqy-microhei.ttc || { echo "缺少字体"; exit 1; }
+          test -f assets/bgm/内置配乐.mp3 || { echo "缺少配乐"; exit 1; }
+          cp assets/fonts/wqy-microhei.ttc _site/assets/fonts/
+          cp assets/bgm/内置配乐.mp3 _site/assets/bgm/
+          touch _site/media/.gitkeep _site/.nojekyll
+          for f in $FILES; do
+            test -f "_site/$f" || { echo "站点缺少: $f"; exit 1; }
+          done
+          refs=$(grep -o 'src="[^"]*\.js[^"]*"' _site/index.html | sed 's/^src="//;s/"$//' || true)
+          test -n "$refs" || { echo "index.html 未找到任何外链脚本"; exit 1; }
+          for s in $refs; do
+            case "$s" in *\?*) s="${s%%\?*}";; esac
+            test -f "_site/$s" || { echo "index.html 引用了不存在的脚本: $s"; exit 1; }
+            echo "  已核对脚本: $s"
+          done
+          links=$(find _site -type l | wc -l)
+          test "$links" -eq 0 || { echo "站点含符号链接: $links 个"; exit 1; }
+          echo "站点文件数: $(find _site -type f | wc -l)"
+          echo "站点总字节: $(du -sb _site | cut -f1)"
+      - name: 本地冒烟
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import http.server, threading, urllib.request, urllib.parse, pathlib, sys
+          root = pathlib.Path('_site').resolve()
+          class Quiet(http.server.SimpleHTTPRequestHandler):
+              def log_message(self, *a): pass
+              def copyfile(self, source, outputfile):
+                  try: super().copyfile(source, outputfile)
+                  except (BrokenPipeError, ConnectionResetError): pass
+          handler = lambda *a, **kw: Quiet(*a, directory=str(root), **kw)
+          srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
+          t = threading.Thread(target=srv.serve_forever, daemon=True); t.start()
+          base = 'http://127.0.0.1:%d/' % srv.server_address[1]
+          bad = []
+          for p in sorted(root.rglob('*')):
+              if not p.is_file(): continue
+              rel = p.relative_to(root).as_posix()
+              url = base + urllib.parse.quote(rel)
+              try:
+                  with urllib.request.urlopen(url, timeout=5) as r:
+                      if r.status != 200: bad.append((rel, r.status))
+              except Exception as e:
+                  bad.append((rel, str(e)))
+          with urllib.request.urlopen(base, timeout=5) as r:
+              body = r.read().decode('utf-8', 'replace')
+          assert '<title>' in body, 'index.html 无 title'
+          srv.shutdown()
+          print('已请求静态资源:', sum(1 for p in root.rglob('*') if p.is_file()), '个文件')
+          if bad:
+              print('FAILED:', bad); sys.exit(1)
+          print('本地冒烟通过：全部资源 200，首页可解析')
+          PY
